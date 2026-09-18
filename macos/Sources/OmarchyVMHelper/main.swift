@@ -184,13 +184,14 @@ do {
         let status = MainActor.assumeIsolated { () -> Int32 in
             let application = NSApplication.shared
             application.setActivationPolicy(ApplicationPresentation.prelaunchActivationPolicy)
-            ApplicationPresentation.installMainMenu(
-                in: application,
-                applicationName: "Try Omarchy"
-            )
             let controller = VMApplicationController(
                 launcherURL: launcher,
                 initialArguments: launcherArguments
+            )
+            ApplicationPresentation.installMainMenu(
+                in: application,
+                applicationName: "Try Omarchy",
+                updatesTarget: controller
             )
             application.delegate = controller
             for signalNumber in [SIGHUP, SIGINT, SIGTERM] {

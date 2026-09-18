@@ -375,6 +375,30 @@ nested virtualization is disabled there to avoid a QEMU startup crash.
 
 ## Data and updates
 
+### Check for Mac app updates
+
+The start menu shows the installed Mac app release and **Check for Updates…**;
+the native application menu offers the same command. The update window checks
+the project's latest stable GitHub release and links to its release notes and
+download. Review the release's macOS requirements before installing.
+
+**Automatically check for updates** is off by default. When enabled, opening
+the app checks at most once every 24 hours; a newer release changes the start
+menu link to **Update Available…**. Manual checks remain available at any time.
+Checks contact GitHub without a GitHub account, and failures do not block VM
+startup. This feature does not download or install app updates automatically.
+
+Older app bundles used the same version metadata for different releases. If
+the build does not include a matching release tag in its metadata, the window
+reports an unknown installed release or a development build instead of claiming
+that it is up to date. The latest release and manual download remain available.
+
+To upgrade, shut down Omarchy, quit the app, download the new DMG, and replace
+**Try Omarchy** in **Applications**. Reopen it to use your existing VM. You do
+not need to reset or delete the VM to update the Mac app.
+
+### Existing VM data
+
 Normal launches keep one persistent VM under
 `~/Library/Application Support/Try Omarchy/VM/v1`. Removing or updating the app
 does not remove or replace this data. An existing VM keeps both its writable
