@@ -57,6 +57,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
     private let fullscreenPreferenceStore: FullscreenPreferenceStore
     private let resourcePreferenceStore: VMResourcePreferenceStore
     private let resourceLimits: VMResourceLimits
+    private let languagePreferenceStore: LanguagePreferenceStore
     private let storageLocationStore: StorageLocationPreferenceStore
     private let volumeProbe: VolumeProbing
     private let volumeRootDetector: VolumeRootDetecting
@@ -100,6 +101,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         fullscreenPreferenceStore: FullscreenPreferenceStore = FullscreenPreferenceStore(),
         resourcePreferenceStore: VMResourcePreferenceStore = VMResourcePreferenceStore(),
         resourceLimits: VMResourceLimits = .current,
+        languagePreferenceStore: LanguagePreferenceStore = LanguagePreferenceStore(),
         storageLocationStore: StorageLocationPreferenceStore = StorageLocationPreferenceStore(),
         volumeProbe: VolumeProbing = URLVolumeProbe(),
         volumeRootDetector: VolumeRootDetecting = FileManagerVolumeRootDetector(),
@@ -117,6 +119,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         self.fullscreenPreferenceStore = fullscreenPreferenceStore
         self.resourcePreferenceStore = resourcePreferenceStore
         self.resourceLimits = resourceLimits
+        self.languagePreferenceStore = languagePreferenceStore
         self.storageLocationStore = storageLocationStore
         self.volumeProbe = volumeProbe
         self.volumeRootDetector = volumeRootDetector
@@ -232,6 +235,11 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
                 do { try self?.networkStore.save(preferences); return nil }
                 catch { return error.localizedDescription }
             },
+            networkIdentity: VMNetworkIdentityAccess.forLaunch(arguments: initialArguments,
+                operation: { [weak self] arguments in
+                    guard let self else { throw HelperError.io("The VM controller is unavailable.") }
+                    return try self.networkIdentityOperation(arguments)
+                }),
             immersiveMode: { [weak self] in
                 self?.fullscreenPreferenceStore.load().isImmersive ?? true
             },
@@ -245,6 +253,22 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
                 self?.appReleaseChecker.menuTitle ?? "Check for Updates…"
             },
             checkForAppUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
+            languageStatus: { [weak self] in
+                LanguageMenuState.make(
+                    preference: self?.languagePreferenceStore.load() ?? .systemDefault,
+                    supportsSelection: self?.supportsLanguageSelection() ?? false
+                )
+            },
+            setLanguage: { [weak self] localeToken in
+                guard self?.supportsLanguageSelection() == true else { return }
+                self?.languagePreferenceStore.save(LanguagePreference(localeToken: localeToken))
+            },
+            integrationCacheURL: { [weak self] in
+                guard let self else { return nil }
+                return GuestIntegrationCache.url(storageRoot: QEMUGPUStorageSpaceEstimate.storageRootURL(
+                    environment: self.baseEnvironment, preference: self.storageLocationStore.load()
+                ))
+            },
             launch: { [weak self] in
                 self?.startVirtualMachine()
             }
@@ -425,6 +449,18 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         let storageUnavailableReason: String?
     }
 
+    private func networkIdentityOperation(_ arguments: [String]) throws -> String {
+        let context = childLaunchContext()
+        if let error = context.storageUnavailableReason { throw HelperError.io(error) }
+        guard let root = QEMUGPUStorageSpaceEstimate.storageRootURL(
+            environment: context.environment, preference: storageLocationStore.load()),
+              let resources = Bundle.main.resourceURL else {
+            throw HelperError.io("The VM data folder is unavailable.")
+        }
+        return try VMNetworkIdentityAccess.operation(arguments, root: root, resources: resources,
+            environment: context.environment, bundleIdentity: bundledMetrics?.identity)
+    }
+
     private func resolvedNetworkPreferences() -> VMNetworkPreferences {
         var preferences = networkStore.load()
         if preferences.mode == .bridged,
@@ -469,8 +505,13 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             preferences: resourcePreferenceStore.load(),
             limits: resourceLimits
         )
-        let storage = StorageLocationLaunchConfiguration.make(
+        let language = LanguageLaunchConfiguration.make(
             baseEnvironment: resources.environment,
+            preference: languagePreferenceStore.load(),
+            supportsSelection: supportsLanguageSelection()
+        )
+        let storage = StorageLocationLaunchConfiguration.make(
+            baseEnvironment: language.environment,
             preference: storageLocationStore.load(),
             metrics: bundledMetrics,
             probe: volumeProbe,
@@ -590,6 +631,17 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
         } catch {
             return error.localizedDescription
         }
+    }
+
+    private func supportsLanguageSelection() -> Bool {
+        if initialArguments.first == QEMUGPUStorageOption.ephemeral.rawValue {
+            return bundledMetrics?.supportsLanguageSelection ?? false
+        }
+        return QEMUGPUStorageSpaceEstimate.supportsLanguageSelection(
+            environment: baseEnvironment,
+            metrics: bundledMetrics,
+            preference: storageLocationStore.load()
+        )
     }
 
     private func storageLocationMenuState() -> StorageLocationMenuState {
