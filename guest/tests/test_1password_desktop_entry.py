@@ -29,7 +29,13 @@ set -euo pipefail
 sudo() {
   [[ $1 == sed ]] || return 99
   if [[ $SED_FAILS == 1 ]]; then return 42; fi
-  "$@"
+  # The guest uses GNU sed; macOS sed requires an explicit backup suffix.
+  if [[ $(uname -s) == Darwin && $2 == -i ]]; then
+    shift 2
+    sed -i '' "$@"
+  else
+    "$@"
+  fi
 }
 yay() { printf '%s\n' "$*" > "$DESKTOP_DIR/cli-installed"; }
 install_tail() {
