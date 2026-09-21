@@ -13,6 +13,12 @@ final class AppReleaseChecker {
         didSet { onChange?() }
     }
 
+    // Request progress and failures must not hide an already discovered update.
+    var menuTitle: String {
+        guard let latest = preferences.latestRelease else { return "Check for Updates…" }
+        return AppReleaseCheckState.result(installed: installed, latest: latest).menuTitle
+    }
+
     init(
         installed: InstalledAppRelease = .current,
         preferences: AppReleasePreferences = AppReleasePreferences(),

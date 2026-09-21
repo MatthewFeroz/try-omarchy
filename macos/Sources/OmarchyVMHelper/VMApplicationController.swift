@@ -242,7 +242,7 @@ final class VMApplicationController: NSObject, NSApplicationDelegate {
             },
             appVersionLabel: appReleaseChecker.installed.label,
             appReleaseActionTitle: { [weak self] in
-                self?.appReleaseChecker.state.menuTitle ?? "Check for Updates…"
+                self?.appReleaseChecker.menuTitle ?? "Check for Updates…"
             },
             checkForAppUpdates: { [weak self] in self?.checkForAppUpdates(nil) },
             launch: { [weak self] in

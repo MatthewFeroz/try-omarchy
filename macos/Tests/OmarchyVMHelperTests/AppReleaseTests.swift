@@ -106,6 +106,7 @@ struct AppReleaseTests {
             })
             checker.checkAutomaticallyIfDue()
             #expect(checker.state == .idle)
+            #expect(checker.menuTitle == "Check for Updates…")
             let first = checker.check()
             let second = checker.check()
             #expect(checker.state == .checking)
@@ -113,6 +114,7 @@ struct AppReleaseTests {
             await second.value
             #expect(requests == 1)
             #expect(checker.state == .available(latest))
+            #expect(checker.menuTitle == "Update Available…")
             #expect(!preferences.automaticChecks)
             // Keep the notification on subsequent launches within the daily interval.
             let reopened = AppReleaseChecker(installed: installed("0.4.1"), preferences: preferences)
@@ -135,9 +137,71 @@ struct AppReleaseTests {
                 return
             }
             #expect(checker.state.releaseURL == AppRelease.releasesURL)
+            #expect(checker.menuTitle == "Check for Updates…")
             offline = false
             await checker.check().value
             #expect(checker.state == .available(latest))
+        }
+    }
+
+    @Test("cached update notifications survive automatic check failures until a successful refresh")
+    func cachedUpdateSurvivesFailure() async throws {
+        let cached = try release()
+        let refreshed = try release("0.4.1")
+        await withPreferences { preferences in
+            let now = Date(timeIntervalSince1970: 1_000_000)
+            preferences.latestRelease = cached
+            preferences.automaticChecks = true
+            var offline = true
+            var requests = 0
+            let checker = AppReleaseChecker(
+                installed: installed("0.4.1"), preferences: preferences, now: { now },
+                fetch: {
+                    requests += 1
+                    if offline { throw URLError(.notConnectedToInternet) }
+                    return refreshed
+                }
+            )
+            var observedTitles: [String] = []
+            checker.onChange = { observedTitles.append(checker.menuTitle) }
+            defer { checker.onChange = nil }
+            #expect(checker.menuTitle == "Update Available…")
+            checker.checkAutomaticallyIfDue()
+            #expect(checker.state == .checking)
+            #expect(checker.menuTitle == "Update Available…")
+            await checker.check().value
+            guard case .failed = checker.state else {
+                Issue.record("Expected an offline failure")
+                return
+            }
+            #expect(checker.menuTitle == "Update Available…")
+            #expect(observedTitles == ["Update Available…", "Update Available…"])
+            #expect(preferences.latestRelease == cached)
+            #expect(!preferences.shouldCheckAutomatically(now: now))
+            #expect(requests == 1)
+
+            offline = false
+            await checker.check().value
+            #expect(checker.state == .current)
+            #expect(checker.menuTitle == "Check for Updates…")
+            #expect(preferences.latestRelease == refreshed)
+            #expect(observedTitles.last == "Check for Updates…")
+        }
+    }
+
+    @Test("cached releases only notify when newer than a known installed version")
+    func cachedNotificationRequiresNewerRelease() async throws {
+        let cached = try release()
+        await withPreferences { preferences in
+            preferences.latestRelease = cached
+            for identity in [installed("0.5.0"), installed("0.6.0"), InstalledAppRelease(info: [:])] {
+                let checker = AppReleaseChecker(installed: identity, preferences: preferences, fetch: {
+                    throw URLError(.notConnectedToInternet)
+                })
+                #expect(checker.menuTitle == "Check for Updates…")
+                await checker.check().value
+                #expect(checker.menuTitle == "Check for Updates…")
+            }
         }
     }
 
