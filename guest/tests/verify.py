@@ -259,6 +259,7 @@ def main() -> None:
             "lutris-aarch64-unavailable",
             "keyboard-us-acentos",
             "ghostty-arm64-terminal",
+            "virgl-nightlight",
         ],
         "Omarchy backports are explicitly ordered and identified",
     )

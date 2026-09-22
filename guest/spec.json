@@ -529,6 +529,25 @@
             "afterSha256": "b65dd81b1bd9820445d1e7ca60c0a978c684c96e3e0280522c60944d1f676be4"
           }
         ]
+      },
+      {
+        "id": "virgl-nightlight",
+        "description": "Use a renderer night-light fallback for Virtio/VirGL and share its status with the shell.",
+        "reference": "https://github.com/omacom/try-omarchy/pulls",
+        "patch": "patches/omarchy/virgl-nightlight.patch",
+        "patchSha256": "0534615beadd340eb048ad0ec038769d241e671b7d76ee523a9dbf3fd2930ed3",
+        "targets": [
+          {
+            "path": "bin/omarchy-toggle-nightlight",
+            "beforeSha256": "da1a268c58df3633441a13c2f7d0e45a04c479bcc678d3fc545c2405848c4ac8",
+            "afterSha256": "9859a26dbbb6821234f6a51da778af981926a13be4e09a8d562fbf4c4568d040"
+          },
+          {
+            "path": "shell/plugins/services/nightlight/Service.qml",
+            "beforeSha256": "721cd63d2404859918e28f92420e87369328c26fcef7df821443baa16d0b1897",
+            "afterSha256": "00110114cc95ae91b295ff4772349f89ade8707d6a581564727bfa1e5f333bab"
+          }
+        ]
       }
     ],
     "postBuildUserInstallers": [
