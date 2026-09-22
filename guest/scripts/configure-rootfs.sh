@@ -96,6 +96,7 @@ chmod 0755 \
   "$root/usr/local/sbin/try-omarchy-migrate-alacritty" \
   "$root/usr/local/sbin/try-omarchy-touch-id-enroll" \
   "$root/usr/local/lib/try-omarchy/install-vivaldi-arm64" \
+  "$root/usr/local/lib/try-omarchy/install-ghostty-arm64" \
   "$root/usr/lib/systemd/system-generators/try-omarchy-ssh-access"
 chmod 0644 "$root/usr/local/share/try-omarchy/aarch64-unavailable-packages"
 

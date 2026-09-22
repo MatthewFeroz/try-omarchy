@@ -258,6 +258,7 @@ def main() -> None:
             "battlenet-aarch64-unavailable",
             "lutris-aarch64-unavailable",
             "keyboard-us-acentos",
+            "ghostty-arm64-terminal",
         ],
         "Omarchy backports are explicitly ordered and identified",
     )
@@ -353,7 +354,7 @@ def main() -> None:
     unavailable_package_text = read(unavailable_packages)
     check(
         unavailable_packages.is_file()
-        and "ghostty\tGhostty" in unavailable_package_text
+        and "ghostty\tGhostty" not in unavailable_package_text
         and "microsoft-edge-stable-bin\tEdge" in unavailable_package_text
         and "spotify\tSpotify" in unavailable_package_text
         and "dropbox\tDropbox" in unavailable_package_text
@@ -395,9 +396,17 @@ def main() -> None:
                 "cliSource": "https://aur.archlinux.org/packages/1password-cli",
                 "runtimePackages": ["which"],
                 "factoryProvenance": "excluded",
+            },
+            {
+                "id": "ghostty-arm64",
+                "userInitiated": True,
+                "delivery": "pinned-signed-source-build",
+                "applicationUrl": "https://release.files.ghostty.org/1.3.1/ghostty-1.3.1.tar.gz",
+                "applicationSha256": "3349d25600ffbda281197a18314f7d18791969cffe9474f0ff16a45a9ebfccdb",
+                "factoryProvenance": "installer-only",
             }
         ],
-        "Vivaldi and mutable 1Password installation are explicit post-build trust boundaries",
+        "Vivaldi, 1Password, and Ghostty installation are explicit post-build trust boundaries",
     )
 
     pacman_conf = read(GUEST / spec["inputs"]["pacmanConfig"])
@@ -1114,6 +1123,13 @@ def main() -> None:
     check(
         "depend = rpm-tools" in register_runtime,
         "packaged Omarchy runtime keeps the Vivaldi signature verifier installed",
+    )
+    check(
+        "usr/local/lib/try-omarchy/install-ghostty-arm64" in register_runtime
+        and "usr/local/share/try-omarchy/ghostty/PKGBUILD" in register_runtime
+        and "usr/local/share/try-omarchy/ghostty/ghostty-wrapper" in register_runtime
+        and 'cp -a "$root/$relative" "$stage/$relative"' in register_runtime,
+        "packaged Omarchy runtime owns the optional Ghostty installer, recipe and wrapper",
     )
     register_yay = read(GUEST / "scripts/register-pinned-yay.sh")
     check(

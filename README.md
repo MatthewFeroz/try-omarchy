@@ -167,6 +167,13 @@ can leave as little as 4 GiB for macOS; higher choices carry a performance note.
 are carried forward. A choice that no longer fits a smaller Mac falls back to
 its default without erasing the saved choice.
 
+## Ghostty
+
+Choose **Install → Terminal → Ghostty** to download verified Ghostty sources
+and build an ARM64 package inside the guest. The first build takes several
+minutes and needs at least 3 GiB free. The installer uses software rendering
+for compatibility with the VM. See [installation, existing VMs and limitations](docs/ghostty.md).
+
 ## 1Password
 
 Install 1Password from the Omarchy menu. On ARM64 guests, Try Omarchy downloads
