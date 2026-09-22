@@ -107,6 +107,58 @@ class GhosttyTests(unittest.TestCase):
                 if not status:
                     self.assertIn('com.mitchellh.ghostty.desktop' if package == 'ghostty' else 'kitty.desktop', preference.read_text())
 
+    def test_reinstall_uses_new_archive_with_stale_cached_package(self):
+        # Exercise publication and installation with a previously cached build
+        # of the same version. Model pacman's filename-based cache lookup for
+        # -S and its direct archive selection for -U.
+        publication = INSTALLER.read_text().split('# Publish before installation', 1)[1]
+        publication = '# Publish before installation' + publication.split('# Discover', 1)[0]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for directory in ('repo', 'build', 'sync', 'cache'):
+                (root / directory).mkdir()
+            pins = SPEC['supplyChain']['ghostty']
+            filename = f"ghostty-{pins['version']}-{pins['pkgrel']}-aarch64.pkg.tar.zst"
+            package = root / 'build' / filename
+            package.write_text('newly built package')
+            cached = root / 'cache' / filename
+            cached.write_text('previous build of the same version')
+            script = r'''
+set -euo pipefail
+root=$1
+package=$2
+repo="$root/repo"
+fail() { echo "$*" >&2; exit 1; }
+sudo() { "$@"; }
+install() { cp "${@: -2}"; }
+repo-add() { cp "${@: -1}" "$repo/try-omarchy.db.tar.gz"; }
+pacman() {
+  case "$1" in
+    -S)
+      local archive="$root/cache/$(basename "$package")"
+      cmp -s "$archive" "$root/sync/try-omarchy.db" || {
+        echo 'invalid or corrupted package (checksum)' >&2
+        return 1
+      }
+      cp "$archive" "$root/installed"
+      ;;
+    -U) cp "${@: -1}" "$root/installed" ;;
+    -Qkk) cmp -s "$package" "$root/installed" ;;
+    -Qn) cmp -s "$root/sync/try-omarchy.db" "$root/installed" ;;
+    *) return 99 ;;
+  esac
+}
+'''
+            # Redirect only the system sync-cache destination into the sandbox.
+            script += publication.replace('/var/lib/pacman/sync/try-omarchy.db',
+                                          '"$root/sync/try-omarchy.db"')
+            result = subprocess.run(['bash', '-c', script, 'installer', str(root), str(package)],
+                                    capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual((root / 'installed').read_bytes(), package.read_bytes())
+            self.assertEqual((root / 'repo' / filename).read_bytes(), package.read_bytes())
+            self.assertEqual(cached.read_text(), 'previous build of the same version')
+
     def test_tampered_assets_stop_before_package_operations(self):
         if os.geteuid() == 0:
             self.skipTest('installer intentionally refuses root')

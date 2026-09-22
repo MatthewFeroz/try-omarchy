@@ -115,7 +115,9 @@ sudo install -m644 "$package" "$repo/$(basename "$package")"
 sudo repo-add --quiet "$repo/try-omarchy.db.tar.gz" "$repo/$(basename "$package")" || fail 'could not register Ghostty'
 sudo ln -sfn try-omarchy.db.tar.gz "$repo/try-omarchy.db"
 sudo install -Dm644 "$repo/try-omarchy.db.tar.gz" /var/lib/pacman/sync/try-omarchy.db
-sudo pacman -S --noconfirm try-omarchy/ghostty || fail 'could not install Ghostty'
+# A rebuild keeps the same filename but changes its checksum. Install this
+# archive directly so pacman cannot reuse an older build from its sync cache.
+sudo pacman -U --noconfirm "$package" || fail 'could not install Ghostty'
 pacman -Qkk ghostty >/dev/null || fail 'the installed Ghostty package is incomplete'
 pacman -Qn ghostty >/dev/null || fail 'Ghostty was not registered as a native package'
 
