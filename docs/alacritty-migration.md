@@ -13,11 +13,12 @@ runtime. This marker identifies that specific fix; it is not a claim that every
 OpenGL application is compatible. Kitty's separate workaround is unaffected.
 
 If `/usr/bin/alacritty` is missing or not executable, the helper can retire the
-unused wrapper without that marker. The leftover wrapper otherwise satisfies
-the launcher entry's `TryExec=alacritty` check, showing an app that cannot launch
-and whose packaged logo is missing. Removing the wrapper lets the launcher hide
-that stale entry. To use Alacritty again, install it through **Install → Terminal
-→ Alacritty**; the package supplies both the executable and its logo.
+unused wrapper without that marker. An uninstalled Alacritty can leave an
+iconless entry in Apps: the wrapper still satisfies `TryExec=alacritty`, and
+Quickshell can keep displaying the user desktop entry even after the wrapper is
+removed. Use the separate user-mode cleanup below to retire that stale entry.
+To use Alacritty again, install it through **Install → Terminal → Alacritty**;
+the package supplies both the executable and its logo.
 
 ## Copy the helper from the installed app
 
@@ -41,6 +42,21 @@ sudo /usr/bin/python3 -I /mnt/mac/try-omarchy-migrate-alacritty
 Alternatively, copy the same bundled file into the guest using an existing SSH
 connection and run it with `sudo /usr/bin/python3 -I /path/to/try-omarchy-migrate-alacritty`.
 SSH access and sharing are not enabled automatically by this migration.
+
+## Remove a stale Apps entry for an uninstalled Alacritty
+
+After retiring the unused wrapper, run the same copied helper **without sudo**:
+
+```sh
+/usr/bin/python3 -I /mnt/mac/try-omarchy-migrate-alacritty --launcher
+```
+
+This step runs as the desktop user. It only removes the exact upstream
+`Alacritty.desktop` when no `alacritty` executable is found in `PATH`, backing
+it up beside the original as `.Alacritty.desktop.try-omarchy-backup`. Apps
+refreshes automatically. It honors `XDG_DATA_HOME` (default `~/.local/share`),
+preserves customized entries and existing backups, and refuses to run as root.
+The wrapper migration alone does not remove this user-owned launcher entry.
 
 ## What the helper changes
 

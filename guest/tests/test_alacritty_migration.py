@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 GUEST = Path(__file__).resolve().parents[1]
 HELPER = GUEST / "native-overlay/usr/local/sbin/try-omarchy-migrate-alacritty"
@@ -60,7 +61,7 @@ class AlacrittyMigrationTests(unittest.TestCase):
     def test_uninstalled_terminal_retires_wrapper_without_runtime_marker(self):
         self.binary.unlink()
         self.cmdline.write_text("quiet omarchy.qemu_virgl=1\n")
-        self.assertIn("stale launcher availability is cleared", self.run_migration())
+        self.assertIn("run --launcher without sudo", self.run_migration())
         self.assertFalse(self.wrapper.exists())
         self.assertEqual(self.backup.read_bytes(), self.original)
         self.assertIn("No migration needed", self.run_migration())
@@ -68,7 +69,7 @@ class AlacrittyMigrationTests(unittest.TestCase):
     def test_nonexecutable_terminal_retires_unused_wrapper(self):
         self.binary.chmod(0o644)
         self.cmdline.write_text("quiet\n")
-        self.assertIn("stale launcher availability is cleared", self.run_migration())
+        self.assertIn("run --launcher without sudo", self.run_migration())
         self.assertFalse(self.wrapper.exists())
 
     def test_uninstalled_terminal_preserves_custom_wrapper(self):
@@ -163,6 +164,71 @@ class AlacrittyMigrationTests(unittest.TestCase):
                       (GUEST / "scripts/configure-rootfs.sh").read_text())
         self.assertIn("systemctl enable try-omarchy-migrate-alacritty.service",
                       (GUEST / "scripts/finalize-rootfs.sh").read_text())
+
+
+class AlacrittyLauncherCleanupTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temporary.cleanup)
+        self.root = Path(self.temporary.name).resolve()
+        self.apps = self.root / "applications"
+        self.apps.mkdir()
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        self.entry = self.apps / "Alacritty.desktop"
+        self.original = (GUEST / "tests/fixtures/Alacritty.desktop").read_bytes()
+        self.entry.write_bytes(self.original)
+        self.backup = self.apps / migration.LAUNCHER_BACKUP
+        # The user-mode policy can be tested by root-run guest build suites too.
+        self.user = patch.object(migration.os, "geteuid", return_value=os.getuid() or 1000)
+        self.user.start()
+        self.addCleanup(self.user.stop)
+
+    def cleanup(self):
+        return migration.cleanup_launcher(self.apps, str(self.bin))
+
+    def test_missing_terminal_removes_only_the_known_entry_and_preserves_backup(self):
+        self.assertEqual(hashlib.sha256(self.original).hexdigest(), migration.LAUNCHER_SHA256)
+        self.assertEqual(len(self.original), migration.LAUNCHER_SIZE)
+        self.assertIn("removed from Apps", self.cleanup())
+        self.assertFalse(self.entry.exists())
+        self.assertEqual(self.backup.read_bytes(), self.original)
+        self.assertIn("No migration needed", self.cleanup())
+
+    def test_installed_or_custom_terminal_preserves_launcher(self):
+        binary = self.bin / "alacritty"
+        binary.write_text("#!/bin/sh\nexit 0\n")
+        binary.chmod(0o755)
+        self.assertIn("still available", self.cleanup())
+        self.assertTrue(self.entry.exists())
+        self.assertFalse(self.backup.exists())
+
+    def test_custom_launcher_is_preserved(self):
+        self.entry.write_bytes(self.original + b"\n# custom\n")
+        self.assertIn("custom contents", self.cleanup())
+        self.assertTrue(self.entry.exists())
+
+    def test_existing_backup_is_not_overwritten(self):
+        self.backup.write_text("previous backup")
+        self.assertIn("backup already exists", self.cleanup())
+        self.assertEqual(self.backup.read_text(), "previous backup")
+        self.assertTrue(self.entry.exists())
+
+    def test_symlink_launcher_is_preserved(self):
+        target = self.root / "target"
+        self.entry.rename(target)
+        self.entry.symlink_to(target)
+        self.assertIn("symbolic link", self.cleanup())
+        self.assertEqual(target.read_bytes(), self.original)
+
+    def test_root_cannot_clean_a_users_launcher(self):
+        with patch.object(migration.os, "geteuid", return_value=0):
+            self.assertIn("without sudo", self.cleanup())
+        self.assertTrue(self.entry.exists())
+
+    def test_xdg_data_home_is_used(self):
+        with patch.dict(os.environ, {"XDG_DATA_HOME": str(self.root)}):
+            self.assertIn("removed from Apps", migration.cleanup_launcher(search_path=str(self.bin)))
 
 
 if __name__ == "__main__":
