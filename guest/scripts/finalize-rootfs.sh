@@ -100,6 +100,28 @@ for verifier in rpm rpmkeys; do
     exit 1
   }
 done
+# Ghostty is downloaded only on request; the factory owns its verified inputs.
+if pacman -Qq ghostty >/dev/null 2>&1; then
+  echo "Ghostty must remain a user-initiated post-build install" >&2
+  exit 1
+fi
+for asset in \
+  /usr/local/lib/try-omarchy/install-ghostty-arm64 \
+  /usr/local/share/try-omarchy/ghostty/PKGBUILD \
+  /usr/local/share/try-omarchy/ghostty/ghostty-wrapper; do
+  [[ -f $asset && ! -L $asset && $(pacman -Qoq "$asset") == try-omarchy-runtime ]] || {
+    echo "Ghostty installer asset is missing, unsafe or unowned: $asset" >&2
+    exit 1
+  }
+done
+[[ -x /usr/local/lib/try-omarchy/install-ghostty-arm64 ]] || exit 1
+for pair in PKGBUILD:recipeSha256 ghostty-wrapper:wrapperSha256; do
+  expected=$(read_spec "[\"supplyChain\"][\"ghostty\"][\"${pair#*:}\"]")
+  printf '%s  %s\n' "$expected" "/usr/local/share/try-omarchy/ghostty/${pair%:*}" | sha256sum -c - >/dev/null || {
+    echo "Ghostty installer asset digest mismatch: ${pair%:*}" >&2
+    exit 1
+  }
+done
 vivaldi_installer=/usr/local/lib/try-omarchy/install-vivaldi-arm64
 vivaldi_key=/usr/local/share/try-omarchy/vivaldi/linux_signing_key.pub
 [[ -x $vivaldi_installer && ! -L $vivaldi_installer ]] || {

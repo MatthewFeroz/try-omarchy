@@ -1223,6 +1223,11 @@ def main() -> None:
         and "Opt-in Voxtype must not be installed in the factory image" in finalizer,
         "guest packages signed ARM64 Voxtype as an opt-in upstream-compatible target",
     )
+    check(
+        "Ghostty must remain a user-initiated post-build install" in read(GUEST / "scripts/finalize-rootfs.sh")
+        and "Ghostty installer asset digest mismatch" in read(GUEST / "scripts/finalize-rootfs.sh"),
+        "factory validation excludes Ghostty while verifying its optional installer assets",
+    )
     third_party_notices = read(REPO / "THIRD_PARTY_NOTICES.md")
     check(
         "**yay**" in third_party_notices and "GPL-3.0-or-later" in third_party_notices,

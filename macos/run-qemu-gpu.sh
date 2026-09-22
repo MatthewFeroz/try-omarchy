@@ -540,6 +540,7 @@ if (
     fail("upstream identity is not pinned")
 
 supply_chain_keys = {
+    "ghostty",
     "aquamarine",
     "hyprtoolkit",
     "archLinuxArmPackagesCommit",
@@ -745,6 +746,41 @@ if yay != {
     "licenseSha256": "589ed823e9a84c56feb95ac58e7cf384626b9cbf4fda2a907bc36e103de1bad2",
 }:
     fail("factory yay component is not the reviewed ARM64 release")
+ghostty = exact_keys(
+    supply_chain.get("ghostty"),
+    {
+        "license",
+        "pkgrel",
+        "recipe",
+        "recipeSha256",
+        "signatureSha256",
+        "signingKey",
+        "sourceSha256",
+        "sourceUrl",
+        "version",
+        "wrapperSha256",
+        "zigSha256",
+        "zigUrl",
+        "zigVersion",
+    },
+    "build spec Ghostty component",
+)
+if ghostty != {
+    "version": "1.3.1",
+    "pkgrel": "1",
+    "sourceUrl": "https://release.files.ghostty.org/1.3.1/ghostty-1.3.1.tar.gz",
+    "sourceSha256": "3349d25600ffbda281197a18314f7d18791969cffe9474f0ff16a45a9ebfccdb",
+    "signingKey": "RWQlAjJC23149WL2sEpT/l0QKy7hMIFhYdQOFy0Z7z7PbneUgvlsnYcV",
+    "zigVersion": "0.15.2",
+    "zigUrl": "https://ziglang.org/download/0.15.2/zig-aarch64-linux-0.15.2.tar.xz",
+    "zigSha256": "958ed7d1e00d0ea76590d27666efbf7a932281b3d7ba0c6b01b0ff26498f667f",
+    "recipe": "native-overlay/usr/local/share/try-omarchy/ghostty/PKGBUILD",
+    "recipeSha256": "fe333bdccba74a4817d2b8e7180f4f37f8455bbb9019cb7db81481c3f64bbf9c",
+    "wrapperSha256": "c41b20e46f257da7a06ee8c67b1056d099f61d7935ac2014525b1b2b1f74f827",
+    "license": "MIT",
+    "signatureSha256": "5591816f6a52f03d1ea5be0129fcc396aeece7238419cdd36e511546ee242798"
+}:
+    fail("Ghostty installer is not pinned to the reviewed signed ARM64 source build")
 vivaldi = exact_keys(
     supply_chain.get("vivaldi"),
     {

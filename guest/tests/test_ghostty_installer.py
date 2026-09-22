@@ -31,6 +31,26 @@ class GhosttyTests(unittest.TestCase):
         self.assertIn(pins['zigVersion'], pins['zigUrl'])
         self.assertEqual(GUEST / pins['recipe'], ASSETS / 'PKGBUILD')
 
+    def test_launcher_accepts_only_reviewed_ghostty_pins(self):
+        launcher = (GUEST.parent / 'macos/run-qemu-gpu.sh').read_text()
+        helpers = launcher.split('def fail(message: str)', 1)[1].split('def load_json', 1)[0]
+        helpers = 'def fail(message: str)' + helpers
+        chain = launcher.split('supply_chain_keys = ', 1)[1].split('hyprland = exact_keys(', 1)[0]
+        chain = 'supply_chain_keys = ' + chain
+        component = launcher.split('ghostty = exact_keys(', 1)[1].split('vivaldi = exact_keys(', 1)[0]
+        code = helpers + chain + 'ghostty = exact_keys(' + component
+        exec(code, {'spec': SPEC})
+        for field in SPEC['supplyChain']['ghostty']:
+            with self.subTest(field=field):
+                changed = json.loads(json.dumps(SPEC))
+                changed['supplyChain']['ghostty'][field] = 'unreviewed'
+                with self.assertRaisesRegex(SystemExit, 'Ghostty installer is not pinned'):
+                    exec(code, {'spec': changed})
+        missing = json.loads(json.dumps(SPEC))
+        del missing['supplyChain']['ghostty']
+        with self.assertRaisesRegex(SystemExit, 'supply chain has an unexpected schema'):
+            exec(code, {'spec': missing})
+
     def test_signature_failure_stops_before_build(self):
         result = subprocess.run(['bash', '-c', 'set -e; source "$1"; srcdir=/unused; minisign() { return 42; }; prepare; echo continued',
                                  'bash', str(ASSETS / 'PKGBUILD')], capture_output=True, text=True)
