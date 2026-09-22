@@ -6,7 +6,8 @@ project-built ARM64 virtual machine image.
 
 ## Before opening a pull request
 
-1. Open an issue for large behavioral or architecture changes.
+1. Open an issue for large behavioral or architecture changes. Search existing
+   open and closed issues first and use the appropriate issue template.
 2. Keep changes within the current Apple Silicon, QEMU/HVF, and ARM64 guest
    architecture unless an architecture change has been discussed first.
 3. Run `make test`.
@@ -14,6 +15,40 @@ project-built ARM64 virtual machine image.
    its pinned versions or checksums were reviewed.
 5. Update documentation when commands, requirements, output paths, or security
    boundaries change.
+6. Use the [PR template](.github/pull_request_template.md), explain what changed
+   and why, link related issues, and complete its checklist honestly.
+7. For UI changes, attach labeled before/after screenshots. For motion, timing,
+   transitions, or interaction changes, also attach a short video.
+
+Keep each PR focused on one problem. Record exact validation commands and
+results, including anything that failed or could not run on your host. Leave
+missing validation or visual evidence unchecked and explain what is outstanding.
+Draft status is optional. For a conditional checklist item that does not apply,
+explain why before checking it.
+Checklist items are contributor attestations reviewed alongside CI; they are
+not automated proof that screenshots or tests are sufficient.
+
+Capture the actual app or guest in comparable before/after states and include
+the steps needed to reproduce the change. Upload PR evidence to GitHub rather
+than committing PR-only media. Remove secrets and unrelated personal information.
+
+## Reporting issues
+
+Use the bug report template for reproducible problems. Include the app version
+or commit, macOS version, Apple chip, relevant guest/runtime details, steps to
+reproduce, expected behavior, and actual behavior. Say when information is
+unknown or a report has not been reproduced; do not guess. Include relevant
+logs or visual evidence and link related reports.
+
+Use the change proposal template for large behavioral or architecture changes.
+Explain the user problem, proposed scope, alternatives, and validation plan.
+Architecture changes must be discussed before implementation. Report suspected
+vulnerabilities through [SECURITY.md](SECURITY.md), not public issues.
+
+Agents should also follow [AGENTS.md](AGENTS.md) when preparing changes, issues,
+and PRs.
+
+## Build inputs and local state
 
 The guest and QEMU supply chains are deliberately pinned. Do not update a URL,
 commit, package lock, archive, or checksum independently of its associated
