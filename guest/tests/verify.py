@@ -2416,6 +2416,10 @@ HOTPLUG=1
                     ["node", str(GUEST / "tests/notification-lock-state.test.js"), str(staged_omarchy)],
                     check=True,
                 )
+                subprocess.run(
+                    ["node", str(GUEST / "tests/nightlight-queue.test.js"), str(staged_omarchy)],
+                    check=True,
+                )
             idle_service = read(staged_omarchy / "shell/plugins/services/idle/Service.qml")
             check(
                 "property bool screensaverStateKnown: false" in idle_service
