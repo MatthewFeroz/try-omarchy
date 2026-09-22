@@ -6,10 +6,18 @@ software rendering. Updating the Mac app does not replace files in an existing
 VM, so retiring that wrapper is a one-time, opt-in step. No factory reset or
 package removal is needed.
 
-The migration helper only runs when the current boot advertises
+When Alacritty is installed, the migration helper only runs when the current
+boot advertises
 `omarchy.virgl_dual_source=1`, which the launcher supplies with the fixed VirGL
 runtime. This marker identifies that specific fix; it is not a claim that every
 OpenGL application is compatible. Kitty's separate workaround is unaffected.
+
+If `/usr/bin/alacritty` is missing or not executable, the helper can retire the
+unused wrapper without that marker. The leftover wrapper otherwise satisfies
+the launcher entry's `TryExec=alacritty` check, showing an app that cannot launch
+and whose packaged logo is missing. Removing the wrapper lets the launcher hide
+that stale entry. To use Alacritty again, install it through **Install → Terminal
+→ Alacritty**; the package supplies both the executable and its logo.
 
 ## Copy the helper from the installed app
 
@@ -22,8 +30,9 @@ APP="/Applications/Try Omarchy.app"
 cp -n "$APP/Contents/Resources/scripts/try-omarchy-migrate-alacritty" "$HOME/Downloads/"
 ```
 
-Restart the VM using the updated app so it receives the runtime marker. Inside
-Omarchy, run the copied helper from the shared folder:
+For installed Alacritty, restart the VM using the updated app so it receives
+the runtime marker. Cleanup of an uninstalled Alacritty does not need a restart.
+Inside Omarchy, run the copied helper from the shared folder:
 
 ```sh
 sudo /usr/bin/python3 -I /mnt/mac/try-omarchy-migrate-alacritty
@@ -50,8 +59,9 @@ Close and reopen Alacritty afterward. Existing terminal processes keep the
 environment they started with. This helper does not change terminal selection,
 Alacritty configuration, or the packaged `/usr/bin/alacritty` executable.
 
-The new factory image also includes a marker-gated service that invokes the
-helper before the graphical login manager. That service is **not automatically
+The new factory image also includes a service that invokes the helper before
+the graphical login manager. The helper checks the runtime marker itself when
+Alacritty is installed. That service is **not automatically
 installed into older guests**; the one-time copied helper is the existing-guest
 migration path.
 

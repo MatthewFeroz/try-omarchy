@@ -1,6 +1,5 @@
 [Unit]
 Description=Retire the factory Alacritty software-rendering workaround
-ConditionKernelCommandLine=omarchy.virgl_dual_source=1
 After=local-fs.target
 Before=sddm.service display-manager.service
 

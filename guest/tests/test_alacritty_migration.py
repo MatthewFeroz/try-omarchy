@@ -26,12 +26,15 @@ class AlacrittyMigrationTests(unittest.TestCase):
         self.wrapper = self.directory / "alacritty"
         self.wrapper.write_bytes(self.original)
         self.wrapper.chmod(0o755)
+        self.binary = self.root / "packaged-alacritty"
+        self.binary.write_text("#!/bin/sh\nexit 0\n")
+        self.binary.chmod(0o755)
         self.backup = self.directory / migration.BACKUP
         self.addCleanup(self.temporary.cleanup)
 
     def run_migration(self, directory=None, uid=None):
         return migration.migrate(self.cmdline, directory or self.directory,
-                                 os.getuid() if uid is None else uid)
+                                 os.getuid() if uid is None else uid, self.binary)
 
     def test_factory_fixture_matches_allowlisted_digest(self):
         self.assertEqual(hashlib.sha256(self.original).hexdigest(), migration.WRAPPER_SHA256)
@@ -53,6 +56,28 @@ class AlacrittyMigrationTests(unittest.TestCase):
                 self.assertIn("Skipped:", self.run_migration())
                 self.assertEqual(self.wrapper.read_bytes(), self.original)
                 self.assertFalse(self.backup.exists())
+
+    def test_uninstalled_terminal_retires_wrapper_without_runtime_marker(self):
+        self.binary.unlink()
+        self.cmdline.write_text("quiet omarchy.qemu_virgl=1\n")
+        self.assertIn("stale launcher availability is cleared", self.run_migration())
+        self.assertFalse(self.wrapper.exists())
+        self.assertEqual(self.backup.read_bytes(), self.original)
+        self.assertIn("No migration needed", self.run_migration())
+
+    def test_nonexecutable_terminal_retires_unused_wrapper(self):
+        self.binary.chmod(0o644)
+        self.cmdline.write_text("quiet\n")
+        self.assertIn("stale launcher availability is cleared", self.run_migration())
+        self.assertFalse(self.wrapper.exists())
+
+    def test_uninstalled_terminal_preserves_custom_wrapper(self):
+        self.binary.unlink()
+        self.cmdline.write_text("quiet\n")
+        self.wrapper.write_bytes(self.original + b"\n# custom\n")
+        self.assertIn("custom contents", self.run_migration())
+        self.assertTrue(self.wrapper.exists())
+        self.assertFalse(self.backup.exists())
 
     def test_custom_wrapper_preserved(self):
         self.wrapper.write_bytes(self.original + b"\n# custom\n")
@@ -131,7 +156,7 @@ class AlacrittyMigrationTests(unittest.TestCase):
 
     def test_service_and_factory_hooks(self):
         service = (GUEST / "native-overlay/usr/lib/systemd/system/try-omarchy-migrate-alacritty.service").read_text()
-        self.assertIn("ConditionKernelCommandLine=" + migration.MARKER, service)
+        self.assertNotIn("ConditionKernelCommandLine=", service)
         self.assertIn("Before=sddm.service display-manager.service", service)
         self.assertIn("ExecStart=/usr/local/sbin/try-omarchy-migrate-alacritty", service)
         self.assertIn('"$root/usr/local/sbin/try-omarchy-migrate-alacritty"',

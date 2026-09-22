@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Retire the known factory workaround after the host enables fixed VirGL."""
+"""Retire the factory wrapper when unused or fixed VirGL makes it unnecessary."""
 
 import errno
 import hashlib
@@ -28,8 +28,12 @@ def open_directory(path):
         raise
 
 
-def migrate(cmdline=Path("/proc/cmdline"), directory=Path("/usr/local/bin"), trusted_uid=0):
-    if MARKER not in cmdline.read_text().split():
+def migrate(cmdline=Path("/proc/cmdline"), directory=Path("/usr/local/bin"), trusted_uid=0,
+            binary=Path("/usr/bin/alacritty")):
+    # A leftover wrapper satisfies desktop TryExec even after the package (and
+    # its icon) is removed. Keep the rendering guard only for installed Alacritty.
+    installed = os.access(binary, os.X_OK)
+    if installed and MARKER not in cmdline.read_text().split():
         return "Skipped: this boot does not advertise the fixed VirGL runtime."
 
     parent = open_directory(directory)
@@ -67,7 +71,9 @@ def migrate(cmdline=Path("/proc/cmdline"), directory=Path("/usr/local/bin"), tru
                     raise RuntimeError("Wrapper changed during migration; no PATH entry was removed.")
             os.unlink("alacritty", dir_fd=parent)
             os.fsync(parent)
-            return "Migrated: the factory Alacritty wrapper was backed up; accelerated rendering is enabled."
+            if installed:
+                return "Migrated: the factory Alacritty wrapper was backed up; accelerated rendering is enabled."
+            return "Migrated: the unused factory Alacritty wrapper was backed up; stale launcher availability is cleared."
         finally:
             os.close(source)
     finally:
