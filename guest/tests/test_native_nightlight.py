@@ -1,12 +1,14 @@
 """Exercise the VM night-light state transitions across the Hyprland IPC boundary."""
 
 import json
+import importlib.util
 import os
 from pathlib import Path
 import shutil
 import subprocess
 import tempfile
 import unittest
+from unittest.mock import patch
 
 
 GUEST = Path(__file__).resolve().parents[1]
@@ -38,7 +40,7 @@ args = sys.argv[1:]
 mode = os.environ.get("NIGHTLIGHT_TEST_MODE")
 if mode == "unavailable": sys.exit(1)
 if args[0] == "getoption":
-    print("not json" if mode == "malformed" else path.read_text())
+    print("not json" if mode == "malformed" else "[]" if mode == "array" else path.read_text())
 elif args[0] == "eval":
     if mode == "reject":
         print("error: rejected setting")
@@ -103,7 +105,7 @@ else: sys.exit(2)
         self.assertFalse(self.status()["enabled"])
 
     def test_unavailable_or_malformed_ipc_does_not_report_success(self):
-        for mode in ("unavailable", "malformed"):
+        for mode in ("unavailable", "malformed", "array"):
             with self.subTest(mode=mode):
                 self.run_helper(code=1, mode=mode)
                 state = json.loads(self.run_helper("--status", code=1, mode=mode).stdout)
@@ -188,6 +190,26 @@ class NightlightInstallerTests(unittest.TestCase):
         self.install("--apply", code=2)
         self.assertEqual(asset.read_text(), "custom shader")
         self.assertNotIn("omarchy-native-nightlight", self.command.read_text())
+
+    def test_write_failure_restores_already_changed_files(self):
+        spec = importlib.util.spec_from_file_location("nightlight_installer", GUEST / "scripts/install-nightlight.py")
+        installer = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(installer)
+        original_command, original_service = self.command.read_bytes(), self.service.read_bytes()
+        replace = Path.replace
+
+        def fail_asset(path, destination):
+            if destination.name == "omarchy-native-nightlight":
+                raise OSError("simulated full disk")
+            return replace(path, destination)
+
+        with patch("sys.argv", ["install-nightlight.py", "--root", str(self.root), "--apply"]):
+            with patch.object(Path, "replace", fail_asset):
+                with self.assertRaisesRegex(OSError, "full disk"):
+                    installer.main()
+        self.assertEqual(self.command.read_bytes(), original_command)
+        self.assertEqual(self.service.read_bytes(), original_service)
+        self.assertFalse((self.root / "usr/local/bin/omarchy-native-nightlight").exists())
 
     def test_symlink_target_is_refused(self):
         saved = self.root / "original-command"
