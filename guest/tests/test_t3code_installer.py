@@ -84,7 +84,7 @@ class T3CodeTests(unittest.TestCase):
 
     def test_download_installs_intact_writable_appimage_and_launcher(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp) / 'space and % field'
+            root = Path(temp).resolve() / 'space and % field'
             calls, migrated = self.install(root)
             app = root / 'try-omarchy/t3code'
             self.assertEqual((app / 'T3-Code.AppImage').read_bytes(), PAYLOAD)
@@ -100,7 +100,7 @@ class T3CodeTests(unittest.TestCase):
         for kwargs, error in [({'fetch_error': OSError('offline')}, OSError),
                               ({'payload': b'corrupted'}, ValueError)]:
             with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp)
+                root = Path(temp).resolve()
                 with self.assertRaises(error):
                     self.install(root, migrate_error=AssertionError('must not remove package'), **kwargs)
                 self.assertFalse((root / 'try-omarchy/t3code/T3-Code.AppImage').exists())
@@ -108,7 +108,7 @@ class T3CodeTests(unittest.TestCase):
 
     def test_reinstall_preserves_nightly_and_repairs_launcher_without_download(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            root = Path(temp).resolve()
             self.install(root)
             image = root / 'try-omarchy/t3code/T3-Code.AppImage'
             image.write_bytes(b'new nightly installed by T3 Code')
@@ -120,7 +120,7 @@ class T3CodeTests(unittest.TestCase):
 
     def test_cancelled_package_removal_is_retryable_without_redownload(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            root = Path(temp).resolve()
             with self.assertRaises(subprocess.CalledProcessError):
                 self.install(root, migrate_error=subprocess.CalledProcessError(1, 'pacman'))
             self.assertFalse((root / 'applications/t3code.desktop').exists())
@@ -129,7 +129,7 @@ class T3CodeTests(unittest.TestCase):
 
     def test_remove_only_deletes_app_and_launcher(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            root = Path(temp).resolve()
             self.install(root)
             saved = root / '.t3'; saved.mkdir(); (saved / 'chat').write_text('keep')
             calls, migrated = self.install(root, remove=True)
@@ -141,14 +141,14 @@ class T3CodeTests(unittest.TestCase):
 
     def test_removing_an_absent_app_is_idempotent(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
+            root = Path(temp).resolve()
             self.install(root, remove=True)
             self.install(root, remove=True)
             self.assertFalse((root / 'try-omarchy/t3code').exists())
 
     def test_symlink_destinations_are_rejected(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp); outside = root / 'outside'; outside.mkdir()
+            root = Path(temp).resolve(); outside = root / 'outside'; outside.mkdir()
             (root / 'try-omarchy').symlink_to(outside)
             with self.assertRaisesRegex(ValueError, 'symlink'):
                 self.install(root)
@@ -156,7 +156,7 @@ class T3CodeTests(unittest.TestCase):
 
     def test_package_migration_unregisters_old_local_repo_entry(self):
         with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp); (repo / 'try-omarchy.db.tar.gz').touch()
+            repo = Path(temp).resolve(); (repo / 'try-omarchy.db.tar.gz').touch()
             def execute(args, **kwargs):
                 return subprocess.CompletedProcess(args, 1 if args[0] == 'pgrep' else 0,
                                                    stdout='t3code-bin-0.0.42-1/desc\n')
@@ -174,7 +174,7 @@ class T3CodeTests(unittest.TestCase):
 
     def test_wrapper_launches_appimage_with_flags_and_arguments(self):
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp); (root / 'config').mkdir()
+            root = Path(temp).resolve(); (root / 'config').mkdir()
             (root / 'config/t3code-flags.conf').write_text('# comment\n--ozone-platform=wayland\n')
             shutil.copyfile(ASSETS / 't3code-wrapper', root / 'wrapper')
             app = root / 'T3-Code.AppImage'
@@ -186,7 +186,7 @@ class T3CodeTests(unittest.TestCase):
     def test_menu_stops_before_theme_and_launch_when_install_fails(self):
         backport = next(p for p in SPEC['authenticity']['backports'] if p['id'] == 't3code-arm64-desktop')
         with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp); (root / 'bin').mkdir()
+            root = Path(temp).resolve(); (root / 'bin').mkdir()
             for target in backport['targets']:
                 shutil.copyfile(GUEST / 'tests/fixtures' / Path(target['path']).name, root / target['path'])
             subprocess.run(['patch', '-p1', '-i', str(GUEST / backport['patch'])], cwd=root, check=True, capture_output=True)
@@ -202,7 +202,7 @@ class T3CodeTests(unittest.TestCase):
     def test_existing_guest_migration_accepts_original_and_previous_pr(self):
         for legacy in (False, True):
             with self.subTest(legacy=legacy), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp); (root / 'usr/bin').mkdir(parents=True)
+                root = Path(temp).resolve(); (root / 'usr/bin').mkdir(parents=True)
                 (root / 'usr/share/try-omarchy').mkdir(parents=True)
                 for name in ('omarchy-update', 'omarchy-install-ai-t3-code', 'omarchy-remove-ai-t3-code'):
                     source = ASSETS / ('legacy-' + name) if legacy and name != 'omarchy-remove-ai-t3-code' else GUEST / 'tests/fixtures' / name
