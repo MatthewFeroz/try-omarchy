@@ -134,7 +134,5 @@ does not apply these launch settings.
 
 ## Optional T3 Code desktop
 
-**Install → AI → T3 Code** downloads the verified official ARM64 AppImage on
-demand. It stays user-owned so T3 Code can install updates and switch to nightly
-from its own settings. See [T3 Code](../docs/t3code.md) for existing-VM migration,
-launcher integration, removal, and the post-build trust boundary.
+Choose **Install → AI → T3 Code**, then use T3 Code’s settings for updates and
+nightly builds. See [existing-VM setup](../docs/t3code.md#existing-vms).
