@@ -72,6 +72,8 @@ bundle's notices and corresponding-source obligations.
 **T3 Code** is an optional, user-initiated download from
 <https://github.com/pingdotgg/t3code> (MIT, with Electron/Chromium and bundled
 third-party notices). The factory distributes only the Try Omarchy installer.
-The installer and Omarchy updater resolve the latest stable ARM64 Electron
-AppImage and verify GitHub's asset SHA-256 before packaging it locally. The
-application itself is a mutable post-build dependency, not a factory artifact.
+The installer resolves the latest stable ARM64 Electron AppImage, verifies
+GitHub's asset SHA-256, and installs the intact file in the guest user's data
+directory. Later releases and channel changes use T3 Code's built-in updater.
+These are mutable post-build downloads trusting the upstream GitHub account and
+HTTPS; the app payload is not redistributed in the factory image.

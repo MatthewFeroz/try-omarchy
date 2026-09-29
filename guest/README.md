@@ -134,7 +134,7 @@ does not apply these launch settings.
 
 ## Optional T3 Code desktop
 
-**Install → AI → T3 Code** downloads and packages the latest stable official
-ARM64 Electron release on demand. `omarchy update` refreshes installed copies
-through the same verified release feed. See [T3 Code](../docs/t3code.md) for
-existing-VM integration, update holds, and the post-build trust boundary.
+**Install → AI → T3 Code** downloads the verified official ARM64 AppImage on
+demand. It stays user-owned so T3 Code can install updates and switch to nightly
+from its own settings. See [T3 Code](../docs/t3code.md) for existing-VM migration,
+launcher integration, removal, and the post-build trust boundary.

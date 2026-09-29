@@ -409,7 +409,7 @@ def main() -> None:
             {
                 "id": "t3code-arm64",
                 "userInitiated": True,
-                "delivery": "latest-stable-vendor-appimage-repack",
+                "delivery": "latest-stable-vendor-appimage",
                 "releaseApi": "https://api.github.com/repos/pingdotgg/t3code/releases/latest",
                 "verification": "github-asset-sha256",
                 "factoryProvenance": "installer-only"

@@ -13,22 +13,37 @@
  
  echo "Matching T3 Code to the current theme..."
  mkdir -p "$T3CODE_STATE_DIR"
-@@ -22,7 +26,7 @@
+@@ -21,8 +25,12 @@
+ 
  omarchy-theme-set-t3code
  
- # The packaged CLI selects the published palette before the app's first launch.
+-# The packaged CLI selects the published palette before the app's first launch.
 -t3 theme set omarchy --base-dir "$T3CODE_HOME"
-+/usr/bin/t3 theme set omarchy --base-dir "$T3CODE_HOME"
++# The bundled CLI selects the published palette before the app's first launch.
++if [[ $(uname -m) == aarch64 ]]; then
++  "${XDG_DATA_HOME:-$HOME/.local/share}/try-omarchy/t3code/t3" theme set omarchy --base-dir "$T3CODE_HOME"
++else
++  t3 theme set omarchy --base-dir "$T3CODE_HOME"
++fi
  
  echo "Opening T3 Code..."
  setsid uwsm-app -- gtk-launch t3code >/dev/null 2>&1 &
---- a/bin/omarchy-update
-+++ b/bin/omarchy-update
-@@ -45,6 +45,7 @@
-   # them, so everything below waits on this finishing. An upgrade that stopped
-   # takes the update with it rather than migrating against what is still on disk.
-   omarchy-update-system-pkgs
-+  /usr/local/lib/try-omarchy/install-t3code-arm64 --update
-   omarchy-migrate
-   omarchy-hook post-update
-   omarchy-update-aur-pkgs
+--- a/bin/omarchy-remove-ai-t3-code
++++ b/bin/omarchy-remove-ai-t3-code
+@@ -5,7 +5,15 @@
+ 
+ set -e
+ 
+-omarchy-pkg-drop t3code-bin
++if [[ $(uname -m) == aarch64 ]]; then
++  /usr/local/lib/try-omarchy/install-t3code-arm64 --remove
++  # Also handle a guest that still has the previous package installation.
++  if pacman -Q t3code-bin >/dev/null 2>&1; then
++    omarchy-pkg-drop t3code-bin
++  fi
++else
++  omarchy-pkg-drop t3code-bin
++fi
+ 
+ # T3 Code drives agents that keep their own state -- ~/.claude.json, ~/.grok,
+ # ~/.local/share/opencode -- and those outlive it, so only its own goes.

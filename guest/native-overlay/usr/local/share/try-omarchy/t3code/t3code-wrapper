@@ -7,4 +7,5 @@ if [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/t3code-flags.conf ]]; then
     [[ -z $trimmed || ${trimmed:0:1} == '#' ]] || flags+=("$flag")
   done <"${XDG_CONFIG_HOME:-$HOME/.config}/t3code-flags.conf"
 fi
-exec /opt/t3code-bin/t3code "${flags[@]}" "$@"
+app_dir=$(cd -- "$(dirname -- "$0")" && pwd)
+exec "$app_dir/T3-Code.AppImage" "${flags[@]}" "$@"

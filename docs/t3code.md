@@ -1,63 +1,72 @@
 # T3 Code desktop on ARM64
 
 Choose **Install → AI → T3 Code** in the Omarchy menu. The installer downloads
-the latest stable official Linux ARM64 Electron release, packages it as
-`t3code-bin`, applies the current Omarchy palette, and opens the desktop app.
-The factory contains only the installer; T3 Code is downloaded on demand.
+and verifies the latest stable official ARM64 AppImage, installs its runtime
+dependencies (including FUSE 2), applies the Omarchy palette, and opens the app.
+The factory contains only installer assets; the application downloads on demand.
 
-**Update → Omarchy** (or `omarchy update`) checks the same release feed after
-system packages update. It upgrades T3 Code only if it is installed, skips
-versions that are already current, refuses downgrades, and respects Pacman's
-`IgnorePkg` patterns. Removing the app through **Remove → AI → T3 Code** stops
-future updates; Omarchy's removal command also deletes its configuration and
-workspaces. Close the app before updating and reopen it afterwards to use the
-new version.
+## Updates and nightly builds
 
-The package is registered in the local Try Omarchy Pacman repository so AUR
-updates cannot replace it with an x86-only package. Run `pacman -Q t3code-bin`
-to see the installed version. `~/.config/t3code-flags.conf` accepts one Electron
-argument per line; comments and blank lines are ignored.
+The intact AppImage lives at
+`~/.local/share/try-omarchy/t3code/T3-Code.AppImage` (under `XDG_DATA_HOME`
+when configured).
+The file and directory belong to the guest user, so T3 Code can replace itself
+without administrator access. The launcher uses a filename without a version
+number, which Electron's AppImage updater preserves when installing updates.
+
+Use T3 Code's settings to choose **Nightly** or check for updates. T3 Code owns
+subsequent update downloads, installation, and restarts. `omarchy update` and
+`yay` do not update this application. Running the installer again keeps the
+existing AppImage, including its version and selected channel, and repairs the
+launcher. Selecting stable again follows T3 Code's own version/downgrade policy.
+
+The desktop entry is installed in the user's applications directory. Its wrapper
+reads `~/.config/t3code-flags.conf` (or the configured `XDG_CONFIG_HOME`); each
+nonempty, noncomment line is one Electron argument. A private `t3` wrapper beside
+the AppImage runs its bundled CLI for initial theme selection. It follows the
+updated AppImage and does not replace an independently installed `t3` command.
+Omarchy continues to publish palette changes to T3 Code's existing theme file.
+
+**Remove → AI → T3 Code** removes the AppImage and launcher, then applies
+Omarchy's existing removal policy, which also deletes T3 Code configuration and
+workspaces. The installer’s `--remove` option alone removes only application
+files and the desktop entry.
 
 ## Existing VMs
 
-Replacing the Mac app does not migrate this integration onto an existing disk.
-From an updated Try Omarchy checkout inside the guest, run:
+Updating the Mac app does not change the integration on an existing guest disk.
+From this Try Omarchy checkout inside the guest, run:
 
 ```sh
 sudo python3 guest/scripts/install-t3code-integration.py
 ```
 
-Then use **Install → AI → T3 Code**. This migration verifies the existing
-installer/updater commands against their reviewed preimages, keeps backups in
-`/var/lib/try-omarchy/t3code-integration-backup.*`, and preserves unrelated build
-metadata and app state. It refuses commands with unrecognized local edits.
-It modifies two installed runtime commands; a reinstall of the old runtime
-package can overwrite them, so rerun the migration afterwards. New factory
-builds own these changes and the installer assets in `try-omarchy-runtime`.
+Close T3 Code, then select **Install → AI → T3 Code**. The installer stages the
+verified AppImage before asking pacman to remove the old `t3code-bin` package.
+It removes the old local repository entry too. Chats, settings, and projects are
+preserved; this migration does not invoke Omarchy's app removal command.
+If removal is cancelled, rerun Install to finish using the staged download.
 
-## Release verification and failure behavior
+The integration migration accepts both the pinned upstream commands and the
+previous version of this PR. It retires the old stable-only `omarchy update`
+hook, updates installation/removal commands, and backs up modified files under
+`/var/lib/try-omarchy/t3code-integration-backup.*`. It refuses unrecognized command
+edits before writing. New factory builds own the integration in
+`try-omarchy-runtime`; reinstalling an older runtime can restore its old commands,
+so rerun the migration if that happens.
 
-The installer code and packaging template are reviewed, checksum-pinned factory
-inputs. The application is deliberately a mutable post-build dependency: the
-installer queries `pingdotgg/t3code`'s GitHub latest-release API, requires a
-stable version and the exact ARM64 asset URL, and verifies the download against
-the SHA-256 digest supplied by GitHub. This trusts the upstream GitHub release
-account and HTTPS; it is not an independently signed or factory-pinned app.
-No downloaded shell script or packaging recipe is executed.
+## Verification and trust boundary
 
-Network, rate-limit, missing-asset, checksum, or packaging errors stop before
-replacing the installed app and are reported by the update command. There is no
-fallback to an old bundled version. Retry the normal update once the problem
-is resolved. New upstream layouts that break packaging require an installer
-update rather than bypassing verification. Plain `pacman -Syu` does not refresh
-the T3 Code release feed; use Omarchy's updater.
+Installer inputs and Omarchy patches are checksum-pinned factory inputs. On the
+first installation the helper resolves GitHub's stable release metadata, requires
+the exact official ARM64 asset URL, and verifies the downloaded AppImage against
+GitHub's SHA-256 digest before executing it or removing an old package. This
+trusts the upstream GitHub account and HTTPS; it is not an independent signature
+or a factory pin of the application version. Future updates use T3 Code's own
+updater and verification policy.
 
-For an unprivileged package build using the checkout's installer inputs:
-
-```sh
-guest/native-overlay/usr/local/lib/try-omarchy/install-t3code-arm64 \
-  --from-checkout "$PWD" --build-only /tmp/t3code-package
-```
-
-Missing package dependencies still use Omarchy's usual privileged package
-installer. Downloading, extracting, and packaging run as the normal user.
+The installer extracts only a desktop icon; the launcher always executes the
+intact AppImage through its runtime. Download or checksum failures stop before
+changing an installed package. The app's complete install → switch to nightly →
+update → restart → menu launch flow should be verified in a disposable guest
+before shipping a factory image.

@@ -1,135 +1,188 @@
-#!/bin/bash
-set -euo pipefail
+#!/usr/bin/env python3
+"""Install the official AppImage on demand; let T3 Code own subsequent updates."""
+import argparse
+import fcntl
+import hashlib
+import importlib.util
+import json
+import os
+from pathlib import Path
+import platform
+import shutil
+import subprocess
+import tempfile
 
-fail() { echo "install-t3code-arm64: $*" >&2; exit 1; }
-usage() {
-  echo 'Usage: install-t3code-arm64 [--from-checkout DIR] [--build-only DIR] [--update]'
-  echo 'Package the verified Electron release as your user and install T3 Code on ARM64.'
-  echo '--build-only retains the package in DIR without registering or installing it.'
-}
+ASSETS = Path('/usr/local/share/try-omarchy/t3code')
+SPEC = Path('/usr/share/try-omarchy/build-spec.json')
+REPO = Path('/usr/share/try-omarchy/repo')
+ASSET_PINS = {'t3code-wrapper': 'wrapperSha256', 't3': 'cliSha256',
+              'resolve-release.py': 'resolverSha256'}
+DEPENDENCIES = ['fuse2', 'alsa-lib', 'at-spi2-core', 'cairo', 'dbus', 'expat',
+                'gdk-pixbuf2', 'glib2', 'glibc', 'gtk3', 'hicolor-icon-theme',
+                'libcups', 'libdrm', 'gcc-libs', 'libx11', 'libxcb', 'libxcomposite',
+                'libxdamage', 'libxext', 'libxfixes', 'libxkbcommon', 'libxrandr',
+                'mesa', 'nspr', 'nss', 'pango', 'systemd-libs', 'xdg-utils', 'zlib']
 
-spec=/usr/share/try-omarchy/build-spec.json
-assets=/usr/local/share/try-omarchy/t3code
-output=''
-update=false
-while (($#)); do
-  case "$1" in
-    --from-checkout)
-      (($# >= 2)) || fail '--from-checkout requires a directory'
-      spec="$2/guest/spec.json"
-      assets="$2/guest/native-overlay/usr/local/share/try-omarchy/t3code"
-      shift 2 ;;
-    --build-only)
-      (($# >= 2)) || fail '--build-only requires a directory'
-      output=$2
-      [[ -n $output ]] || fail '--build-only requires a directory'
-      shift 2 ;;
-    --update) update=true; shift ;;
-    -h|--help) usage; exit 0 ;;
-    *) fail "unknown option: $1" ;;
-  esac
-done
-[[ $(uname -m) == aarch64 ]] || fail 'this installer supports only aarch64'
-(( EUID != 0 )) || fail 'run as your normal guest user, without sudo; packaging must not run as root'
-[[ -f $spec && ! -L $spec ]] || fail 'the Try Omarchy build spec is missing or unsafe'
 
-# Updating must not reinstall an app that the user removed, or bypass a hold.
-if $update; then
-  pacman -Q t3code-bin >/dev/null 2>&1 || exit 0
-  while IFS= read -r pattern; do
-    if [[ -n $pattern && t3code-bin == $pattern ]]; then
-      echo 'T3 Code is held by IgnorePkg; skipping its update.'
-      exit 0
-    fi
-  done < <(pacman-conf IgnorePkg)
-fi
+def run(*args, **kwargs):
+    return subprocess.run(args, check=True, **kwargs)
 
-# Authenticate local packaging code; only version and digest come from the network.
-python3 - "$spec" "$assets" <<'PYCODE'
-import hashlib, json, pathlib, sys
-pins = json.loads(pathlib.Path(sys.argv[1]).read_text())["supplyChain"]["t3code"]
-assets = pathlib.Path(sys.argv[2])
-for name, field in (("PKGBUILD", "recipeSha256"), ("t3code-wrapper", "wrapperSha256"),
-                    ("t3", "cliSha256"), ("resolve-release.py", "resolverSha256")):
-    path = assets / name
-    if path.is_symlink() or not path.is_file():
-        raise SystemExit(f"missing or unsafe T3 Code asset: {name}")
-    if hashlib.sha256(path.read_bytes()).hexdigest() != pins[field]:
-        raise SystemExit(f"T3 Code asset digest mismatch: {name}")
-PYCODE
 
-cache=${XDG_CACHE_HOME:-$HOME/.cache}
-mkdir -p "$cache"
-work=$(mktemp -d "$cache/try-omarchy-t3code.XXXXXX")
-trap 'rm -rf -- "$work"' EXIT
-curl --fail --location --proto '=https' --tlsv1.2 --connect-timeout 15 --max-time 60 \
-  --silent --show-error https://api.github.com/repos/pingdotgg/t3code/releases/latest \
-  -o "$work/release.json" || fail 'could not check the latest stable release; the installed app was not changed'
-python3 "$assets/resolve-release.py" <"$work/release.json" >"$work/release.txt" || fail 'invalid release metadata'
-mapfile -t release <"$work/release.txt"
-(( ${#release[@]} == 3 )) || fail 'incomplete release metadata'
-version=${release[0]}
-digest=${release[2]}
-package_version="$version-1"
+def sha256(path):
+    with path.open('rb') as stream:
+        return hashlib.file_digest(stream, 'sha256').hexdigest()
 
-repo=/usr/share/try-omarchy/repo
-if [[ -z $output ]]; then
-  [[ -d $repo && ! -L $repo ]] || fail 'the local Try Omarchy repository is missing or unsafe'
-  grep -Fxq '[try-omarchy]' /etc/pacman.conf || fail 'the local Try Omarchy repository is not configured'
-  if installed=$(pacman -Q t3code-bin 2>/dev/null); then
-    installed_version=${installed#t3code-bin }
-    if (( $(vercmp "$installed_version" "$package_version") >= 0 )) &&
-       pacman -Qn t3code-bin >/dev/null 2>&1; then
-      echo "T3 Code $installed_version is already current (latest stable: $version)."
-      exit 0
-    fi
-    (( $(vercmp "$installed_version" "$package_version") <= 0 )) || fail 'refusing to downgrade the installed app'
 
-  fi
-fi
+def safe_path(path):
+    # Do not follow user-created symlinks when writing or deleting app assets.
+    if any(part.is_symlink() for part in (path, *path.parents)):
+        raise ValueError(f'refusing symlink destination: {path}')
 
-echo 'Downloading and packaging the latest stable ARM64 Electron desktop release.'
-sed -e "s/@VERSION@/$version/g" -e "s/@APPIMAGE_SHA256@/$digest/g" \
-  "$assets/PKGBUILD" >"$work/PKGBUILD"
-# The template and substituted values were validated above.
-mapfile -t dependencies < <(bash -c 'source "$1"; printf "%s\n" "${depends[@]}"' bash "$work/PKGBUILD")
-(( ${#dependencies[@]} > 0 )) || fail 'the package dependencies are missing'
-omarchy-pkg-add fakeroot binutils "${dependencies[@]}" || fail 'could not install package dependencies'
-for tool in makepkg python3 curl tar zstd fakeroot bsdtar repo-add pacman; do
-  command -v "$tool" >/dev/null || fail "$tool is required"
-done
 
-available=$(df --output=avail --block-size=1 "$cache" | tail -n 1)
-[[ $available =~ ^[[:space:]]*[0-9]+$ ]] || fail 'could not determine free build space'
-(( available >= 2 * 1024 * 1024 * 1024 )) || fail 'at least 2 GiB free is needed for packaging'
-cp "$assets/t3code-wrapper" "$assets/t3" "$work/"
-(
-  cd "$work"
-  # Isolate outputs from user makepkg destination/cache settings. No sync or
-  # install flag: makepkg must never invoke a privileged build itself.
-  export BUILDDIR="$work" PKGDEST="$work" SRCDEST="$work" SRCPKGDEST="$work"
-  export PKGEXT=.pkg.tar.zst
-  makepkg --noconfirm --nosign
-) || fail 'T3 Code build failed; the installed app was not changed'
+def data_home():
+    path = Path(os.environ.get('XDG_DATA_HOME') or str(Path.home() / '.local/share'))
+    if not path.is_absolute() or any(c in str(path) for c in '\n\r'):
+        raise ValueError('XDG_DATA_HOME must be an absolute path without line breaks')
+    return path
 
-package="$work/t3code-bin-$package_version-aarch64.pkg.tar.zst"
-[[ -f $package && ! -L $package ]] || fail 'the expected package was not produced'
-[[ $(pacman -Qp "$package") == "t3code-bin $package_version" ]] || fail 'unexpected T3 Code package identity'
-if [[ -n $output ]]; then
-  mkdir -p "$output"
-  cp "$package" "$output/"
-  echo "Built: $output/$(basename "$package")"
-  exit 0
-fi
 
-# Publish before installation so yay does not treat T3 Code as a foreign/AUR
-# package. Keep the archive for offline reinstallation via pacman.
-sudo install -m644 "$package" "$repo/$(basename "$package")"
-sudo repo-add --quiet "$repo/try-omarchy.db.tar.gz" "$repo/$(basename "$package")" || fail 'could not register T3 Code'
-sudo ln -sfn try-omarchy.db.tar.gz "$repo/try-omarchy.db"
-sudo install -Dm644 "$repo/try-omarchy.db.tar.gz" /var/lib/pacman/sync/try-omarchy.db
-sudo pacman -S --noconfirm try-omarchy/t3code-bin || fail 'could not install T3 Code'
-pacman -Qkk t3code-bin >/dev/null || fail 'the installed T3 Code package is incomplete'
-pacman -Qn t3code-bin >/dev/null || fail 'T3 Code was not registered as a native package'
+def fetch(url, destination):
+    run('curl', '--fail', '--location', '--proto', '=https', '--proto-redir', '=https',
+        '--tlsv1.2', '--connect-timeout', '15', '--max-time', '600', '--silent',
+        '--show-error', url, '-o', str(destination))
 
-echo 'T3 Code desktop is installed and available in the application launcher.'
+
+def atomic_write(path, content, mode=0o644):
+    safe_path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, temporary = tempfile.mkstemp(prefix='.t3code-', dir=path.parent)
+    try:
+        with os.fdopen(fd, 'wb') as stream:
+            stream.write(content)
+            os.fchmod(stream.fileno(), mode)
+        os.replace(temporary, path)
+    finally:
+        Path(temporary).unlink(missing_ok=True)
+
+
+def desktop_quote(path):
+    # Desktop Entry Exec has its own quoting rules, including field codes.
+    return '"' + str(path).replace('\\', '\\\\\\\\').replace('"', '\\\\"').replace('`', '\\\\`').replace('$', '\\\\$').replace('%', '%%') + '"'
+
+
+def migrate_package():
+    installed = subprocess.run(['pacman', '-Q', 't3code-bin'], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL).returncode == 0
+    if installed:
+        if subprocess.run(['pgrep', '-u', str(os.getuid()), '-f', '^/opt/t3code-bin/'],
+                          stdout=subprocess.DEVNULL).returncode == 0:
+            raise ValueError('Close the packaged T3 Code app and retry installation.')
+        # This removes only package files; ~/.t3 and ~/.config/t3code are preserved.
+        run('sudo', 'pacman', '-R', 't3code-bin')
+    # Retire the repository entry even after an interrupted migration removed the package.
+    if (REPO / 'try-omarchy.db.tar.gz').exists():
+        # Only remove the old integration's entry if it is still in the repo.
+        listed = run('bsdtar', '-tf', str(REPO / 'try-omarchy.db.tar.gz'),
+                     capture_output=True, text=True).stdout
+        if any(line.startswith('t3code-bin-') for line in listed.splitlines()):
+            run('sudo', 'repo-remove', str(REPO / 'try-omarchy.db.tar.gz'), 't3code-bin')
+            run('sudo', 'install', '-Dm644', str(REPO / 'try-omarchy.db.tar.gz'),
+                '/var/lib/pacman/sync/try-omarchy.db')
+
+
+def install(assets=ASSETS, spec_path=SPEC, remove=False):
+    home = data_home()
+    app_dir = home / 'try-omarchy/t3code'
+    desktop = home / 'applications/t3code.desktop'
+    safe_path(app_dir)
+    safe_path(desktop)
+    app_dir.parent.mkdir(parents=True, exist_ok=True)
+    lock = app_dir.parent / '.t3code-install.lock'
+    safe_path(lock)
+    with lock.open('a') as stream:
+        fcntl.flock(stream, fcntl.LOCK_EX)
+        if remove:
+            # The menu separately applies Omarchy's existing data-removal policy.
+            if app_dir.exists():
+                shutil.rmtree(app_dir)
+            desktop.unlink(missing_ok=True)
+            refresh_desktop(home)
+            return
+        pins = json.loads(spec_path.read_text())['supplyChain']['t3code']
+        for name, key in ASSET_PINS.items():
+            source = assets / name
+            if source.is_symlink() or not source.is_file() or sha256(source) != pins[key]:
+                raise ValueError(f'T3 Code asset digest mismatch: {name}')
+        image = app_dir / 'T3-Code.AppImage'
+        safe_path(image)
+        # Re-running Install must never overwrite a newer build or a nightly.
+        if not image.exists():
+            with tempfile.TemporaryDirectory(prefix='.t3code-download.', dir=app_dir.parent) as temp:
+                stage = Path(temp)
+                fetch(pins['releaseApi'], stage / 'release.json')
+                module_spec = importlib.util.spec_from_file_location('t3release', assets / 'resolve-release.py')
+                release = importlib.util.module_from_spec(module_spec)
+                module_spec.loader.exec_module(release)
+                version, url, digest = release.resolve(json.loads((stage / 'release.json').read_text()))
+                download = stage / 'T3-Code.AppImage'
+                fetch(url, download)
+                if sha256(download) != digest:
+                    raise ValueError('AppImage checksum mismatch; the installed app was not changed')
+                download.chmod(0o755)
+                run('omarchy-pkg-add', *DEPENDENCIES)
+                # Extract just a launcher icon. The executable remains an intact AppImage.
+                icon_relative = 'usr/share/icons/hicolor/256x256/apps/t3code.png'
+                run(str(download), '--appimage-extract', icon_relative, cwd=stage,
+                    stdout=subprocess.DEVNULL)
+                icon = stage / 'squashfs-root' / icon_relative
+                if not icon.is_file() or icon.is_symlink():
+                    raise ValueError('AppImage is missing its desktop icon')
+                app_dir.mkdir(exist_ok=True)
+                atomic_write(app_dir / 't3code.png', icon.read_bytes())
+                os.replace(download, image)
+                print(f'Installed T3 Code {version} AppImage.')
+        else:
+            if not image.is_file() or not os.access(image, os.W_OK | os.X_OK):
+                raise ValueError('Existing AppImage is not a writable executable')
+            run('omarchy-pkg-add', *DEPENDENCIES)
+            print('Keeping the installed AppImage and its selected update channel.')
+        # Stage the replacement before removing any package; cancellation is retryable.
+        migrate_package()
+        for name in ('t3code-wrapper', 't3'):
+            atomic_write(app_dir / name, (assets / name).read_bytes(), 0o755)
+        entry = ('[Desktop Entry]\nName=T3 Code\nComment=Desktop control surface for local coding agents\n'
+                 f'Exec={desktop_quote(app_dir / "t3code-wrapper")} %U\n'
+                 f'Icon={str(app_dir / "t3code.png").replace(chr(92), chr(92)*2)}\n'
+                 'Terminal=false\nType=Application\nStartupWMClass=t3code\n'
+                 'Categories=Development;\nMimeType=x-scheme-handler/t3code;\n')
+        atomic_write(desktop, entry.encode())
+        refresh_desktop(home)
+        print('Use T3 Code Settings to switch channels and install future updates.')
+
+
+def refresh_desktop(home):
+    if (home / 'applications').is_dir() and shutil.which('update-desktop-database'):
+        run('update-desktop-database', str(home / 'applications'))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--from-checkout', type=Path)
+    parser.add_argument('--remove', action='store_true')
+    args = parser.parse_args()
+    if os.geteuid() == 0:
+        parser.error('run as your normal guest user, without sudo')
+    if platform.machine() != 'aarch64':
+        parser.error('this installer supports only aarch64')
+    assets, spec = ASSETS, SPEC
+    if args.from_checkout:
+        assets = args.from_checkout / 'guest/native-overlay/usr/local/share/try-omarchy/t3code'
+        spec = args.from_checkout / 'guest/spec.json'
+    try:
+        install(assets, spec, args.remove)
+    except (ValueError, OSError, subprocess.CalledProcessError) as error:
+        parser.exit(1, f'install-t3code-arm64: {error}\n')
+
+
+if __name__ == '__main__':
+    main()
