@@ -2237,13 +2237,18 @@ HOTPLUG=1
             "background picker preserves directory order and sorts within each directory",
         )
 
+        patched_targets: dict[str, str] = {}
         for backport in backports:
             for target in backport["targets"]:
+                path = target["path"]
+                preimage = patched_targets.get(path) or hashlib.sha256(
+                    (source / path).read_bytes()
+                ).hexdigest()
                 check(
-                    hashlib.sha256((source / target["path"]).read_bytes()).hexdigest()
-                    == target["beforeSha256"],
-                    f"pinned source matches backport preimage: {backport['id']} {target['path']}",
+                    preimage == target["beforeSha256"],
+                    f"pinned source or earlier backport matches backport preimage: {backport['id']} {path}",
                 )
+                patched_targets[path] = target["afterSha256"]
 
         with tempfile.TemporaryDirectory() as temporary:
             staged_root = Path(temporary) / "root"
@@ -2267,13 +2272,11 @@ HOTPLUG=1
                 text=True,
                 capture_output=True,
             )
-            for backport in backports:
-                for target in backport["targets"]:
-                    check(
-                        hashlib.sha256((staged_omarchy / target["path"]).read_bytes()).hexdigest()
-                        == target["afterSha256"],
-                        f"backport produces reviewed postimage: {backport['id']} {target['path']}",
-                    )
+            for path, postimage in patched_targets.items():
+                check(
+                    hashlib.sha256((staged_omarchy / path).read_bytes()).hexdigest() == postimage,
+                    f"backports produce reviewed postimage: {path}",
+                )
 
             onepassword_installer_path = (
                 staged_omarchy / "bin/omarchy-install-service-1password"
