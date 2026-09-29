@@ -135,4 +135,4 @@ does not apply these launch settings.
 ## Optional T3 Code desktop
 
 Choose **Install → AI → T3 Code**, then use T3 Code’s settings for updates and
-nightly builds. See [existing-VM setup](../docs/t3code.md#existing-vms).
+nightly builds. See [T3 Code](../docs/t3code.md).

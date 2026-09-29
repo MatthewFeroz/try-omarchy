@@ -225,9 +225,7 @@
       "wrapperSha256": "15c1be9c4dd78a255c8039f9aa416169257fc76db2064be142244a583a4ab31c",
       "cliSha256": "8d1eb5fcb90961562c50dbe72ebc7b0703acd4b5dec43069d066f6866edd12b0",
       "resolverSha256": "384c438dbafccf5891e2f53406ec0669ccd0ff3460684956c34add670e048839",
-      "legacyInstallSha256": "0c96118a1f97b50e60901a1b0f29c093174f5f5355499ea37e1bdaef0e4f5d52",
-      "legacyUpdateSha256": "fe4f23aeee7226327005f7973e67c305c7c4c0464186859300ffa23627dccf1b",
-      "installerSha256": "d41595fcf436d8beedd03a4e9669ee9756d335e2b43fa2f46bd0a7b393516547"
+      "installerSha256": "42305c784c0b718756488f6a059ca8c1cde3f6bcfddadcbac659bc50ea6914f2"
     }
   },
   "themes": [
@@ -544,7 +542,7 @@
         "description": "Lazy-install the official ARM64 AppImage with user-owned files and upstream in-app updates.",
         "reference": "https://github.com/basecamp/omarchy/blob/0534987009061cbe2dacdde4ad564092ab698d12/bin/omarchy-install-ai-t3-code",
         "patch": "patches/omarchy/t3code-arm64-desktop.patch",
-        "patchSha256": "e76a09c4bd4efbd5767877a84ee26a966e105f8abd007b8cc871a8896aec2c0a",
+        "patchSha256": "f5fc861607ffc64eb4e021bdf872c3c125c1a8807dc5d4b3e0130c67cb1db70b",
         "targets": [
           {
             "path": "bin/omarchy-install-ai-t3-code",
@@ -554,7 +552,7 @@
           {
             "path": "bin/omarchy-remove-ai-t3-code",
             "beforeSha256": "9204b36c7a20b816a55aa1d69a15f09217c2f2117ce0abdf5f48fb4d53a2fe74",
-            "afterSha256": "202f06809d9fef9cb4f73d0ef6ae2904d5cf5197c1e6d42dfb783c7daa45adc9"
+            "afterSha256": "271e1fe6efc7c59f0e4cf914c123697cdbd937393b922cf4bf88754f655194fb"
           }
         ]
       }

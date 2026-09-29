@@ -131,8 +131,6 @@ for asset in \
   /usr/local/lib/try-omarchy/install-t3code-arm64 \
   /usr/local/share/try-omarchy/t3code/t3code-wrapper \
   /usr/local/share/try-omarchy/t3code/t3 \
-  /usr/local/share/try-omarchy/t3code/legacy-omarchy-install-ai-t3-code \
-  /usr/local/share/try-omarchy/t3code/legacy-omarchy-update \
   /usr/local/share/try-omarchy/t3code/resolve-release.py; do
   [[ -f $asset && ! -L $asset && $(pacman -Qoq "$asset") == try-omarchy-runtime ]] || {
     echo "T3 Code installer asset is missing, unsafe or unowned: $asset" >&2
@@ -142,7 +140,7 @@ done
 [[ -x /usr/local/lib/try-omarchy/install-t3code-arm64 ]] || exit 1
 expected=$(read_spec '["supplyChain"]["t3code"]["installerSha256"]')
 printf '%s  %s\n' "$expected" /usr/local/lib/try-omarchy/install-t3code-arm64 | sha256sum -c - >/dev/null
-for pair in t3code-wrapper:wrapperSha256 t3:cliSha256 resolve-release.py:resolverSha256 legacy-omarchy-install-ai-t3-code:legacyInstallSha256 legacy-omarchy-update:legacyUpdateSha256; do
+for pair in t3code-wrapper:wrapperSha256 t3:cliSha256 resolve-release.py:resolverSha256; do
   expected=$(read_spec "[\"supplyChain\"][\"t3code\"][\"${pair#*:}\"]")
   printf '%s  %s\n' "$expected" "/usr/local/share/try-omarchy/t3code/${pair%:*}" | sha256sum -c - >/dev/null || {
     echo "T3 Code installer asset digest mismatch: ${pair%:*}" >&2

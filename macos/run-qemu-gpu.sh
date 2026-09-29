@@ -757,8 +757,6 @@ t3code = exact_keys(
     {
         "cliSha256",
         "installerSha256",
-        "legacyInstallSha256",
-        "legacyUpdateSha256",
         "releaseApi",
         "resolverSha256",
         "wrapperSha256",
@@ -770,9 +768,7 @@ if t3code != {
     "wrapperSha256": "15c1be9c4dd78a255c8039f9aa416169257fc76db2064be142244a583a4ab31c",
     "cliSha256": "8d1eb5fcb90961562c50dbe72ebc7b0703acd4b5dec43069d066f6866edd12b0",
     "resolverSha256": "384c438dbafccf5891e2f53406ec0669ccd0ff3460684956c34add670e048839",
-    "legacyInstallSha256": "0c96118a1f97b50e60901a1b0f29c093174f5f5355499ea37e1bdaef0e4f5d52",
-    "legacyUpdateSha256": "fe4f23aeee7226327005f7973e67c305c7c4c0464186859300ffa23627dccf1b",
-    "installerSha256": "d41595fcf436d8beedd03a4e9669ee9756d335e2b43fa2f46bd0a7b393516547"
+    "installerSha256": "42305c784c0b718756488f6a059ca8c1cde3f6bcfddadcbac659bc50ea6914f2"
 }:
     fail("build spec T3 Code installer differs from the reviewed release policy")
 

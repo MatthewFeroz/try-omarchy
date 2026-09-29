@@ -150,8 +150,6 @@ for relative in \
   usr/local/lib/try-omarchy/install-t3code-arm64 \
   usr/local/share/try-omarchy/t3code/t3code-wrapper \
   usr/local/share/try-omarchy/t3code/t3 \
-  usr/local/share/try-omarchy/t3code/legacy-omarchy-install-ai-t3-code \
-  usr/local/share/try-omarchy/t3code/legacy-omarchy-update \
   usr/local/share/try-omarchy/t3code/resolve-release.py; do
   [[ -f $root/$relative && ! -L $root/$relative ]] || fail "T3 Code installer asset is missing or unsafe: $relative"
   mkdir -p "$stage/$(dirname "$relative")"

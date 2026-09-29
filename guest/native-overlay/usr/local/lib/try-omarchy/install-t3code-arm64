@@ -14,7 +14,6 @@ import tempfile
 
 ASSETS = Path('/usr/local/share/try-omarchy/t3code')
 SPEC = Path('/usr/share/try-omarchy/build-spec.json')
-REPO = Path('/usr/share/try-omarchy/repo')
 ASSET_PINS = {'t3code-wrapper': 'wrapperSha256', 't3': 'cliSha256',
               'resolve-release.py': 'resolverSha256'}
 DEPENDENCIES = ['fuse2', 'alsa-lib', 'at-spi2-core', 'cairo', 'dbus', 'expat',
@@ -68,26 +67,6 @@ def atomic_write(path, content, mode=0o644):
 def desktop_quote(path):
     # Desktop Entry Exec has its own quoting rules, including field codes.
     return '"' + str(path).replace('\\', '\\\\\\\\').replace('"', '\\\\"').replace('`', '\\\\`').replace('$', '\\\\$').replace('%', '%%') + '"'
-
-
-def migrate_package():
-    installed = subprocess.run(['pacman', '-Q', 't3code-bin'], stdout=subprocess.DEVNULL,
-                               stderr=subprocess.DEVNULL).returncode == 0
-    if installed:
-        if subprocess.run(['pgrep', '-u', str(os.getuid()), '-f', '^/opt/t3code-bin/'],
-                          stdout=subprocess.DEVNULL).returncode == 0:
-            raise ValueError('Close the packaged T3 Code app and retry installation.')
-        # This removes only package files; ~/.t3 and ~/.config/t3code are preserved.
-        run('sudo', 'pacman', '-R', 't3code-bin')
-    # Retire the repository entry even after an interrupted migration removed the package.
-    if (REPO / 'try-omarchy.db.tar.gz').exists():
-        # Only remove the old integration's entry if it is still in the repo.
-        listed = run('bsdtar', '-tf', str(REPO / 'try-omarchy.db.tar.gz'),
-                     capture_output=True, text=True).stdout
-        if any(line.startswith('t3code-bin-') for line in listed.splitlines()):
-            run('sudo', 'repo-remove', str(REPO / 'try-omarchy.db.tar.gz'), 't3code-bin')
-            run('sudo', 'install', '-Dm644', str(REPO / 'try-omarchy.db.tar.gz'),
-                '/var/lib/pacman/sync/try-omarchy.db')
 
 
 def install(assets=ASSETS, spec_path=SPEC, remove=False):
@@ -146,8 +125,6 @@ def install(assets=ASSETS, spec_path=SPEC, remove=False):
                 raise ValueError('Existing AppImage is not a writable executable')
             run('omarchy-pkg-add', *DEPENDENCIES)
             print('Keeping the installed AppImage and its selected update channel.')
-        # Stage the replacement before removing any package; cancellation is retryable.
-        migrate_package()
         for name in ('t3code-wrapper', 't3'):
             atomic_write(app_dir / name, (assets / name).read_bytes(), 0o755)
         entry = ('[Desktop Entry]\nName=T3 Code\nComment=Desktop control surface for local coding agents\n'

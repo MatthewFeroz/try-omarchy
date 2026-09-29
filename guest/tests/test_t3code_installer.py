@@ -1,5 +1,4 @@
 from __future__ import annotations
-import copy
 import hashlib
 import importlib.machinery
 import importlib.util
@@ -28,7 +27,6 @@ def load(name, path):
 
 release = load('release', ASSETS / 'resolve-release.py')
 installer = load('installer', INSTALLER)
-integration = load('integration', GUEST / 'scripts/install-t3code-integration.py')
 PAYLOAD = b'fake ARM64 AppImage bytes'
 
 
@@ -56,13 +54,11 @@ class T3CodeTests(unittest.TestCase):
                 release.resolve(item)
 
     def test_local_inputs_match_reviewed_spec(self):
-        for name, key in {**installer.ASSET_PINS,
-                          'legacy-omarchy-install-ai-t3-code': 'legacyInstallSha256',
-                          'legacy-omarchy-update': 'legacyUpdateSha256'}.items():
+        for name, key in installer.ASSET_PINS.items():
             self.assertEqual(installer.sha256(ASSETS / name), SPEC['supplyChain']['t3code'][key])
         self.assertEqual(installer.sha256(INSTALLER), SPEC['supplyChain']['t3code']['installerSha256'])
 
-    def install(self, root, payload=PAYLOAD, fetch_error=None, migrate_error=None, remove=False):
+    def install(self, root, payload=PAYLOAD, fetch_error=None, remove=False):
         calls = []
         def fetch(url, destination):
             calls.append(('download', url))
@@ -77,15 +73,14 @@ class T3CodeTests(unittest.TestCase):
                 icon.write_bytes(b'icon')
         with patch.dict(os.environ, {'XDG_DATA_HOME': str(root)}), \
              patch.object(installer, 'fetch', side_effect=fetch), \
-             patch.object(installer, 'run', side_effect=run), \
-             patch.object(installer, 'migrate_package', side_effect=migrate_error) as migrate:
+             patch.object(installer, 'run', side_effect=run):
             installer.install(ASSETS, GUEST / 'spec.json', remove)
-            return calls, migrate.call_count
+            return calls
 
     def test_download_installs_intact_writable_appimage_and_launcher(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve() / 'space and % field'
-            calls, migrated = self.install(root)
+            calls = self.install(root)
             app = root / 'try-omarchy/t3code'
             self.assertEqual((app / 'T3-Code.AppImage').read_bytes(), PAYLOAD)
             self.assertEqual((app / 'T3-Code.AppImage').stat().st_mode & 0o777, 0o755)
@@ -93,16 +88,15 @@ class T3CodeTests(unittest.TestCase):
             entry = (root / 'applications/t3code.desktop').read_text()
             self.assertIn('%% field', entry)
             self.assertIn('t3code-wrapper" %U', entry)
-            self.assertEqual(migrated, 1)
             self.assertTrue((app / 't3').stat().st_mode & 0o111)
 
-    def test_network_and_checksum_failure_leave_existing_package_untouched(self):
+    def test_network_and_checksum_failure_do_not_install_app(self):
         for kwargs, error in [({'fetch_error': OSError('offline')}, OSError),
                               ({'payload': b'corrupted'}, ValueError)]:
             with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp).resolve()
                 with self.assertRaises(error):
-                    self.install(root, migrate_error=AssertionError('must not remove package'), **kwargs)
+                    self.install(root, **kwargs)
                 self.assertFalse((root / 'try-omarchy/t3code/T3-Code.AppImage').exists())
                 self.assertFalse((root / 'applications/t3code.desktop').exists())
 
@@ -113,30 +107,21 @@ class T3CodeTests(unittest.TestCase):
             image = root / 'try-omarchy/t3code/T3-Code.AppImage'
             image.write_bytes(b'new nightly installed by T3 Code')
             (root / 'applications/t3code.desktop').unlink()
-            calls, _ = self.install(root, fetch_error=AssertionError('must not download stable'))
+            calls = self.install(root, fetch_error=AssertionError('must not download stable'))
             self.assertEqual(image.read_bytes(), b'new nightly installed by T3 Code')
             self.assertTrue((root / 'applications/t3code.desktop').exists())
             self.assertFalse(any(c[0] == 'download' for c in calls))
 
-    def test_cancelled_package_removal_is_retryable_without_redownload(self):
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp).resolve()
-            with self.assertRaises(subprocess.CalledProcessError):
-                self.install(root, migrate_error=subprocess.CalledProcessError(1, 'pacman'))
-            self.assertFalse((root / 'applications/t3code.desktop').exists())
-            self.install(root, fetch_error=AssertionError('already staged'))
-            self.assertTrue((root / 'applications/t3code.desktop').exists())
 
     def test_remove_only_deletes_app_and_launcher(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             self.install(root)
             saved = root / '.t3'; saved.mkdir(); (saved / 'chat').write_text('keep')
-            calls, migrated = self.install(root, remove=True)
+            calls = self.install(root, remove=True)
             self.assertFalse((root / 'try-omarchy/t3code').exists())
             self.assertFalse((root / 'applications/t3code.desktop').exists())
             self.assertEqual((saved / 'chat').read_text(), 'keep')
-            self.assertEqual(migrated, 0)
             self.assertFalse(any(c[0] == 'download' for c in calls))
 
     def test_removing_an_absent_app_is_idempotent(self):
@@ -154,23 +139,6 @@ class T3CodeTests(unittest.TestCase):
                 self.install(root)
             self.assertEqual(list(outside.iterdir()), [])
 
-    def test_package_migration_unregisters_old_local_repo_entry(self):
-        with tempfile.TemporaryDirectory() as temp:
-            repo = Path(temp).resolve(); (repo / 'try-omarchy.db.tar.gz').touch()
-            def execute(args, **kwargs):
-                return subprocess.CompletedProcess(args, 1 if args[0] == 'pgrep' else 0,
-                                                   stdout='t3code-bin-0.0.42-1/desc\n')
-            with patch.object(installer, 'REPO', repo), patch.object(installer.subprocess, 'run', side_effect=execute) as run:
-                installer.migrate_package()
-                calls = [c.args[0] for c in run.call_args_list]
-                self.assertIn(('sudo', 'pacman', '-R', 't3code-bin'), calls)
-                self.assertIn(('sudo', 'repo-remove', str(repo / 'try-omarchy.db.tar.gz'), 't3code-bin'), calls)
-
-    def test_migration_refuses_to_remove_running_package(self):
-        with patch.object(installer.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0)) as run:
-            with self.assertRaisesRegex(ValueError, 'Close the packaged'):
-                installer.migrate_package()
-            self.assertFalse(any(c.args[0][0] == 'sudo' for c in run.call_args_list))
 
     def test_wrapper_launches_appimage_with_flags_and_arguments(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -198,28 +166,6 @@ class T3CodeTests(unittest.TestCase):
             result=subprocess.run(['bash',str(target)],env={**os.environ,'HOME':str(root),'PATH':str(root/'bin')+':'+os.environ['PATH']},capture_output=True)
             self.assertEqual(result.returncode,42)
             self.assertFalse((root/'theme').exists())
-
-    def test_existing_guest_migration_accepts_original_and_previous_pr(self):
-        for legacy in (False, True):
-            with self.subTest(legacy=legacy), tempfile.TemporaryDirectory() as temp:
-                root = Path(temp).resolve(); (root / 'usr/bin').mkdir(parents=True)
-                (root / 'usr/share/try-omarchy').mkdir(parents=True)
-                for name in ('omarchy-update', 'omarchy-install-ai-t3-code', 'omarchy-remove-ai-t3-code'):
-                    source = ASSETS / ('legacy-' + name) if legacy and name != 'omarchy-remove-ai-t3-code' else GUEST / 'tests/fixtures' / name
-                    shutil.copyfile(source, root / 'usr/bin' / name)
-                old = copy.deepcopy(SPEC); del old['supplyChain']['t3code']
-                specpath = root / 'usr/share/try-omarchy/build-spec.json'
-                specpath.write_text(json.dumps(old))
-                integration.install(GUEST, root)
-                first = (root / 'usr/bin/omarchy-update').read_bytes()
-                self.assertEqual(first, (GUEST / 'tests/fixtures/omarchy-update').read_bytes())
-                integration.install(GUEST, root)
-                self.assertEqual(first, (root / 'usr/bin/omarchy-update').read_bytes())
-                self.assertEqual(json.loads(specpath.read_text())['upstream'], old['upstream'])
-                (root / 'usr/bin/omarchy-update').write_text('# user change')
-                with self.assertRaisesRegex(ValueError, 'differs from the reviewed version'):
-                    integration.install(GUEST, root)
-                self.assertEqual((root / 'usr/bin/omarchy-update').read_text(), '# user change')
 
 
 if __name__ == '__main__':

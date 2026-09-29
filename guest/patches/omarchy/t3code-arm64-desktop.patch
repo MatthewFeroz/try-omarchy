@@ -30,17 +30,13 @@
  setsid uwsm-app -- gtk-launch t3code >/dev/null 2>&1 &
 --- a/bin/omarchy-remove-ai-t3-code
 +++ b/bin/omarchy-remove-ai-t3-code
-@@ -5,7 +5,15 @@
+@@ -5,7 +5,11 @@
  
  set -e
  
 -omarchy-pkg-drop t3code-bin
 +if [[ $(uname -m) == aarch64 ]]; then
 +  /usr/local/lib/try-omarchy/install-t3code-arm64 --remove
-+  # Also handle a guest that still has the previous package installation.
-+  if pacman -Q t3code-bin >/dev/null 2>&1; then
-+    omarchy-pkg-drop t3code-bin
-+  fi
 +else
 +  omarchy-pkg-drop t3code-bin
 +fi
