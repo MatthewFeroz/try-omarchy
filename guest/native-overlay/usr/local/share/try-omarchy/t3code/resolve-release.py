@@ -6,6 +6,8 @@ import sys
 
 
 def resolve(release):
+    if not isinstance(release, dict):
+        raise ValueError('expected a release object')
     if release.get('draft') is not False or release.get('prerelease') is not False:
         raise ValueError('expected a published stable release')
     tag = release.get('tag_name', '')
@@ -13,7 +15,10 @@ def resolve(release):
         raise ValueError('invalid stable version')
     version = tag[1:]
     name = f'T3-Code-{version}-arm64.AppImage'
-    assets = [a for a in release.get('assets', []) if a.get('name') == name]
+    listed = release.get('assets')
+    if not isinstance(listed, list):
+        raise ValueError('release has no asset list')
+    assets = [a for a in listed if isinstance(a, dict) and a.get('name') == name]
     if len(assets) != 1:
         raise ValueError('release must contain exactly one ARM64 Electron AppImage')
     asset = assets[0]

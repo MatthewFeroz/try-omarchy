@@ -222,10 +222,10 @@
     },
     "t3code": {
       "releaseApi": "https://api.github.com/repos/pingdotgg/t3code/releases/latest",
-      "wrapperSha256": "15c1be9c4dd78a255c8039f9aa416169257fc76db2064be142244a583a4ab31c",
+      "wrapperSha256": "f5737b71c625e760e80d39e4905d514f2c1faa5785ca7dfbc8166900caae0678",
       "cliSha256": "8d1eb5fcb90961562c50dbe72ebc7b0703acd4b5dec43069d066f6866edd12b0",
-      "resolverSha256": "384c438dbafccf5891e2f53406ec0669ccd0ff3460684956c34add670e048839",
-      "installerSha256": "42305c784c0b718756488f6a059ca8c1cde3f6bcfddadcbac659bc50ea6914f2"
+      "resolverSha256": "a2baf2c0950cc1b8042e46f21347156211af0c250600cff03cfb5b381cb0653d",
+      "installerSha256": "f0df8b3bb6e4bcccb9aa77e965c94dbdb504acdf8acc181b389f6599ee5de94c"
     }
   },
   "themes": [
@@ -539,10 +539,10 @@
       },
       {
         "id": "t3code-arm64-desktop",
-        "description": "Lazy-install the official ARM64 AppImage with user-owned files and upstream in-app updates.",
+        "description": "Lazy-install the official ARM64 AppImage with user-owned files, upstream in-app updates, and menu entries that follow the installed AppImage.",
         "reference": "https://github.com/basecamp/omarchy/blob/0534987009061cbe2dacdde4ad564092ab698d12/bin/omarchy-install-ai-t3-code",
         "patch": "patches/omarchy/t3code-arm64-desktop.patch",
-        "patchSha256": "f5fc861607ffc64eb4e021bdf872c3c125c1a8807dc5d4b3e0130c67cb1db70b",
+        "patchSha256": "c18be249a78ab873cd964c9ac8783d20fc9ca51930bcf9daa01fdaefa1772576",
         "targets": [
           {
             "path": "bin/omarchy-install-ai-t3-code",
@@ -552,7 +552,12 @@
           {
             "path": "bin/omarchy-remove-ai-t3-code",
             "beforeSha256": "9204b36c7a20b816a55aa1d69a15f09217c2f2117ce0abdf5f48fb4d53a2fe74",
-            "afterSha256": "271e1fe6efc7c59f0e4cf914c123697cdbd937393b922cf4bf88754f655194fb"
+            "afterSha256": "38d9312f2744aef956b762606937053280be17ad81bc9906665924647b19e4ea"
+          },
+          {
+            "path": "default/omarchy/omarchy-menu.jsonc",
+            "beforeSha256": "78d817a76be7ce7d204e15c2617df72f897efe90e22f9af4e255bdf17fbfbedb",
+            "afterSha256": "935154e8c9d799069f5bbe78c106ebbe5071214f41189c935659ad66f054d6c0"
           }
         ]
       }
@@ -694,10 +699,7 @@
       "activation": "always-on",
       "device": "virtserialport",
       "direction": "host-to-guest",
-      "guestSupplies": [
-        "ADP0",
-        "BAT0"
-      ],
+      "guestSupplies": ["ADP0", "BAT0"],
       "port": "dev.tryomarchy.battery",
       "protocolVersion": 1
     },

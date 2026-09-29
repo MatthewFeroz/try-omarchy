@@ -765,10 +765,10 @@ t3code = exact_keys(
 )
 if t3code != {
     "releaseApi": "https://api.github.com/repos/pingdotgg/t3code/releases/latest",
-    "wrapperSha256": "15c1be9c4dd78a255c8039f9aa416169257fc76db2064be142244a583a4ab31c",
+    "wrapperSha256": "f5737b71c625e760e80d39e4905d514f2c1faa5785ca7dfbc8166900caae0678",
     "cliSha256": "8d1eb5fcb90961562c50dbe72ebc7b0703acd4b5dec43069d066f6866edd12b0",
-    "resolverSha256": "384c438dbafccf5891e2f53406ec0669ccd0ff3460684956c34add670e048839",
-    "installerSha256": "42305c784c0b718756488f6a059ca8c1cde3f6bcfddadcbac659bc50ea6914f2"
+    "resolverSha256": "a2baf2c0950cc1b8042e46f21347156211af0c250600cff03cfb5b381cb0653d",
+    "installerSha256": "f0df8b3bb6e4bcccb9aa77e965c94dbdb504acdf8acc181b389f6599ee5de94c"
 }:
     fail("build spec T3 Code installer differs from the reviewed release policy")
 

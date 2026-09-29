@@ -85,6 +85,13 @@ def install(assets=ASSETS, spec_path=SPEC, remove=False):
             if app_dir.exists():
                 shutil.rmtree(app_dir)
             desktop.unlink(missing_ok=True)
+            # T3 Code registers itself as the t3code:// handler. Drop that entry
+            # only when it launches this AppImage, not a separately managed build.
+            handler = home / 'applications/com.t3tools.T3Code.desktop'
+            safe_path(handler)
+            exec_line = f'\nExec={desktop_quote(app_dir / "T3-Code.AppImage")} %U\n'
+            if handler.is_file() and exec_line in handler.read_text(errors='replace'):
+                handler.unlink()
             refresh_desktop(home)
             return
         pins = json.loads(spec_path.read_text())['supplyChain']['t3code']
@@ -157,6 +164,8 @@ def main():
         spec = args.from_checkout / 'guest/spec.json'
     try:
         install(assets, spec, args.remove)
+    except KeyError as error:
+        parser.exit(1, f'install-t3code-arm64: build spec is missing T3 Code pin {error}\n')
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         parser.exit(1, f'install-t3code-arm64: {error}\n')
 

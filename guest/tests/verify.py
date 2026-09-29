@@ -2376,6 +2376,19 @@ HOTPLUG=1
                 and 'omarchy-cmd-present vivaldi-stable' in menu,
                 "Vivaldi appears in Install, Remove, and Default Browser menus",
             )
+            t3code_appimage = "${XDG_DATA_HOME:-$HOME/.local/share}/try-omarchy/t3code"
+            for relative in ("bin/omarchy-install-ai-t3-code", "bin/omarchy-remove-ai-t3-code"):
+                subprocess.run(["bash", "-n", str(staged_omarchy / relative)], check=True)
+            install_t3code = read(staged_omarchy / "bin/omarchy-install-ai-t3-code")
+            remove_t3code = read(staged_omarchy / "bin/omarchy-remove-ai-t3-code")
+            check(
+                "/usr/local/lib/try-omarchy/install-t3code-arm64\n" in install_t3code
+                and f'"{t3code_appimage}/t3" theme set omarchy' in install_t3code
+                and "/usr/local/lib/try-omarchy/install-t3code-arm64 --remove\nfi\nomarchy-pkg-drop t3code-bin\n" in remove_t3code
+                and f'"when":"! omarchy-pkg-present t3code-bin && [[ ! -e {t3code_appimage}/T3-Code.AppImage ]]"' in menu
+                and f'"when":"omarchy-pkg-present t3code-bin || [[ -d {t3code_appimage} ]]"' in menu,
+                "T3 Code install, removal, and menu entries follow the ARM64 AppImage",
+            )
             check(
                 "/opt/vivaldi/" in theme_browser
                 and "refresh_running_browser /opt/vivaldi/ vivaldi-stable -f"

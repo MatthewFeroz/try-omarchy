@@ -8,4 +8,6 @@ if [[ -f ${XDG_CONFIG_HOME:-$HOME/.config}/t3code-flags.conf ]]; then
   done <"${XDG_CONFIG_HOME:-$HOME/.config}/t3code-flags.conf"
 fi
 app_dir=$(cd -- "$(dirname -- "$0")" && pwd)
+# Terminals opened from T3 Code inherit its server's Node mode; the app needs Electron.
+unset ELECTRON_RUN_AS_NODE
 exec "$app_dir/T3-Code.AppImage" "${flags[@]}" "$@"
